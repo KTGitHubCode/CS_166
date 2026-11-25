@@ -1,0 +1,8 @@
+1|Marcus|Vance|48|2600000.00|General Manager|2020-01-15|18
+2|Elena|Rostova|42|1500000.00|VP of Football Operations|2021-03-10|14
+3|Devon|Brooks|39|450000.00|Director of Stadium Operations|2022-06-01|11
+4|Tanya|Mercer|44|920000.00|Director of Pro Personnel|2021-07-19|15
+5|Raymond|Caldwell|51|1150000.00|Assistant General Manager|2020-04-12|19
+6|Simone|Bauer|37|680000.00|Director of College Scouting|2022-05-18|10
+7|Gregory|holt|46|840000.00|Director of Salary Cap & Analytics|2021-02-08|16
+8|Valerie|Santos|40|520000.00|Director of Player Engagement|2023-03-22|12
