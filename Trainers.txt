@@ -1,6 +1,0 @@
-601|Carlos|Mendez|135000.00|36|Male|2021-05-01|10
-602|Rachel|Foster|122000.00|33|Female|2022-07-10|7
-603|Darius|Grant|118000.00|31|Male|2023-08-01|6
-604|Sonia|Kowalski|142000.00|38|Female|2020-04-15|12
-605|Trevor|Brooks|115000.00|29|Male|2024-05-12|5
-606|Vanessa|Lin|128000.00|34|Female|2022-03-20|8

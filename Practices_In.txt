@@ -1,5 +1,0 @@
-1001|2026-11-12|Morning|TRUE|
-1002|2026-11-12|Morning|TRUE|
-1004|2026-11-12|Morning|TRUE|
-1009|2026-11-12|Morning|FALSE|Unexcused
-1007|2026-11-12|Morning|FALSE|Excused

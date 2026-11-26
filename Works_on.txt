@@ -1,8 +1,0 @@
-601|1007|Boot immobilization; non-weight-bearing pool work|FALSE|2026-11-10
-602|1011|Cleared for limited individual route drills|TRUE|2026-11-10
-601|1028|Limited range of motion; cleared for non-contact|TRUE|2026-11-10
-603|1035|Early post-op quad activation & ROM therapy|FALSE|2026-11-10
-602|1036|Sub-symptom aerobic bike test|FALSE|2026-11-10
-601|1042|Post-op aquatic therapy; progressive loading|FALSE|2026-11-10
-605|1014|Core stabilization & soft-tissue massage|TRUE|2026-11-25
-606|1020|Isometric neck strengthening; cleared for practice|TRUE|2026-11-25
