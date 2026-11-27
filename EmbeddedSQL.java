@@ -133,10 +133,6 @@ public class EmbeddedSQL {
    }
 
    public static int printDetailedResultSet(ResultSet rs) throws SQLException {
-      return printDetailedResultSet(rs, false);
-   }
-
-   public static int printDetailedResultSet(ResultSet rs, boolean paginateInHalves) throws SQLException {
       ResultSetMetaData rsmd = rs.getMetaData();
       int numCol = rsmd.getColumnCount();
 
@@ -152,7 +148,7 @@ public class EmbeddedSQL {
          }
       }
 
-      // Pre-format each record block so we know the exact total count and can split cleanly in half
+      // Pre-format each record block so we know total count and can automatically paginate in 20-record chunks
       List<String> formattedRecords = new ArrayList<>();
       while (rs.next()) {
          StringBuilder sb = new StringBuilder();
@@ -215,40 +211,49 @@ public class EmbeddedSQL {
          return 0;
       }
 
-      int splitIdx = (paginateInHalves && totalRows > 1) ? (totalRows + 1) / 2 : totalRows;
+      final int chunkSize = 20;
+      boolean isPaginated = totalRows > chunkSize;
 
-      for (int idx = 0; idx < splitIdx; idx++) {
-         System.out.println("================================================================================");
-         System.out.println(" RECORD #" + (idx + 1) + (paginateInHalves && totalRows > 1 ? " of " + totalRows : ""));
-         System.out.println("================================================================================");
-         System.out.println(formattedRecords.get(idx));
-      }
+      for (int start = 0; start < totalRows; start += chunkSize) {
+         int end = Math.min(start + chunkSize, totalRows);
 
-      if (splitIdx < totalRows) {
-         System.out.println("--- Showing first half: Records 1 to " + splitIdx + " of " + totalRows + " ---");
-         while (true) {
-            System.out.print("Enter 1 to view the second half (Records " + (splitIdx + 1) + " to " + totalRows + "), or 0 to stop: ");
-            try {
-               String line = in.readLine();
-               if (line == null) break;
-               int nav = Integer.parseInt(line.trim());
-               if (nav == 1) {
-                  System.out.println();
-                  for (int idx = splitIdx; idx < totalRows; idx++) {
-                     System.out.println("================================================================================");
-                     System.out.println(" RECORD #" + (idx + 1) + " of " + totalRows);
-                     System.out.println("================================================================================");
-                     System.out.println(formattedRecords.get(idx));
+         for (int idx = start; idx < end; idx++) {
+            System.out.println("================================================================================");
+            System.out.println(" RECORD #" + (idx + 1) + (isPaginated ? " of " + totalRows : ""));
+            System.out.println("================================================================================");
+            System.out.println(formattedRecords.get(idx));
+         }
+
+         if (end < totalRows) {
+            int nextEnd = Math.min(end + chunkSize, totalRows);
+            System.out.println("--- Showing Records " + (start + 1) + " to " + end + " of " + totalRows + " ---");
+            boolean shouldContinue = false;
+            while (true) {
+               System.out.print("Enter 1 to continue (Records " + (end + 1) + " to " + nextEnd + "), or 0 to stop: ");
+               try {
+                  String line = in.readLine();
+                  if (line == null) {
+                     shouldContinue = false;
+                     break;
                   }
-                  break;
-               } else if (nav == 0) {
-                  System.out.println("(Skipped remaining records)");
-                  break;
-               } else {
-                  System.out.println("Invalid input! Please enter 1 for the second half or 0 to stop.");
+                  int nav = Integer.parseInt(line.trim());
+                  if (nav == 1) {
+                     System.out.println();
+                     shouldContinue = true;
+                     break;
+                  } else if (nav == 0) {
+                     System.out.println("(Stopped displaying remaining records)");
+                     shouldContinue = false;
+                     break;
+                  } else {
+                     System.out.println("Invalid input! Please enter 1 to continue or 0 to stop.");
+                  }
+               } catch (Exception e) {
+                  System.out.println("Invalid input! Please enter 1 to continue or 0 to stop.");
                }
-            } catch (Exception e) {
-               System.out.println("Invalid input! Please enter 1 for the second half or 0 to stop.");
+            }
+            if (!shouldContinue) {
+               break;
             }
          }
       }
@@ -280,12 +285,8 @@ public class EmbeddedSQL {
    }
 
    private static int printSmartResultSet(ResultSet rs) throws SQLException {
-      return printSmartResultSet(rs, false);
-   }
-
-   private static int printSmartResultSet(ResultSet rs, boolean paginateInHalves) throws SQLException {
       if (hasListOrLongColumns(rs.getMetaData())) {
-         return printDetailedResultSet(rs, paginateInHalves);
+         return printDetailedResultSet(rs);
       } else {
          return printResultSet(rs);
       }
@@ -1926,7 +1927,7 @@ public class EmbeddedSQL {
          try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
             bindQueryParams(conn, ps, params);
             try (ResultSet rs = ps.executeQuery()) {
-               int rowCount = printSmartResultSet(rs, config.rawTableName.equals("Team_Players"));
+               int rowCount = printSmartResultSet(rs);
                System.out.println("\ntotal row(s): " + rowCount);
             }
          }
@@ -2044,7 +2045,7 @@ public class EmbeddedSQL {
                              (config.defaultOrderBy != null ? " ORDER BY " + config.defaultOrderBy : "");
             try (PreparedStatement listPs = conn.prepareStatement(listSql);
                  ResultSet listRs = listPs.executeQuery()) {
-               printSmartResultSet(listRs, config.rawTableName.equals("Team_Players"));
+               printSmartResultSet(listRs);
             }
          }
 
