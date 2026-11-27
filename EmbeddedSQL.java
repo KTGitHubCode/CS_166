@@ -256,64 +256,6 @@ public class EmbeddedSQL {
    }
 
 
-   // =========================================================================
-   // STARTUP NORMALIZATION: CONVERT STORED STRINGS TO LOWERCASE
-   // =========================================================================
-
-   private static final java.util.Set<String> ENUM_CHECK_COLUMNS = new java.util.HashSet<>(
-      Arrays.asList("morning_afternoon", "regular_practice_squad", "defensive_offensive", "focus", "excused_unexcused")
-   );
-
-   public static void normalizeDatabaseStringsToLower(Connection conn) {
-      System.out.print("Normalizing database text records to lowercase...");
-      try (Statement stmt = conn.createStatement()) {
-         for (int t = 1; t <= 26; t++) {
-            SearchTableConfig cfg = getTableConfig(t);
-            if (cfg == null) continue;
-
-            List<String> standardSetClauses = new ArrayList<>();
-            List<SearchColumn> enumCols = new ArrayList<>();
-
-            for (SearchColumn c : cfg.columns) {
-               if (c.type == ColType.STRING) {
-                  if (ENUM_CHECK_COLUMNS.contains(c.label)) {
-                     enumCols.add(c);
-                  } else {
-                     standardSetClauses.add(c.label + " = LOWER(" + c.label + ")");
-                  }
-               } else if (c.type == ColType.STRING_ARRAY) {
-                  standardSetClauses.add(
-                     c.label + " = CASE WHEN " + c.label + " IS NULL THEN NULL " +
-                     "ELSE ARRAY(SELECT LOWER(elem) FROM unnest(" + c.label + ") AS elem) END"
-                  );
-               }
-            }
-
-            if (!standardSetClauses.isEmpty()) {
-               String sql = "UPDATE " + cfg.rawTableName + " SET " + String.join(", ", standardSetClauses);
-               try {
-                  stmt.executeUpdate(sql);
-               } catch (SQLException ignored) {
-                  // Skip if a specific table/column has a custom constraint or trigger
-               }
-            }
-
-            // Attempt enum-constrained columns individually so a CHECK constraint on one
-            // never blocks normalizing other columns
-            for (SearchColumn ec : enumCols) {
-               try {
-                  stmt.executeUpdate("UPDATE " + cfg.rawTableName + " SET " + ec.label + " = LOWER(" + ec.label + ")");
-               } catch (SQLException ignored) {
-                  // Preserve database-enforced enum casing if a CHECK constraint requires Title Case
-               }
-            }
-         }
-         System.out.println("Done");
-      } catch (SQLException e) {
-         System.err.println("\n[Warning] Could not normalize all text columns: " + e.getMessage());
-      }
-   }
-
    public static void main (String[] args) {
       if (args.length != 3) {
          System.err.println (
@@ -332,7 +274,6 @@ public class EmbeddedSQL {
          String dbport = args[1];
          String user = args[2];
          esql = new EmbeddedSQL (dbname, dbport, user, "");
-         normalizeDatabaseStringsToLower(esql.getConnection());
 
          boolean keepon = true;
          while(keepon) {
@@ -737,7 +678,7 @@ public class EmbeddedSQL {
       String healthStatus = readOptionalString("Health Status (optional, defaults to 'Healthy'): ");
       if (healthStatus == null) healthStatus = "healthy";
       String squad = readEnum("Roster Type (required: 'Regular' or 'Practice Squad'): ",
-                              true, Arrays.asList("Regular", "Practice Squad"));
+                              true, Arrays.asList("regular", "practice squad"));
       Integer jersey = readInt("Jersey Number (optional, 0-99): ", false, 0, 99);
       String positions = readRequiredString("Positions (required, e.g., 'QB' or 'WR, KR'): ").toLowerCase();
       int mid = readInt("Manager ID (mid, required existing Manager ID): ", true, null, null);
@@ -813,7 +754,7 @@ public class EmbeddedSQL {
       Integer exp = readInt("Experience in years (optional, >= 0): ", false, 0, null);
       String position = readRequiredString("Coaching Title/Position (required, e.g., 'Head Coach'): ");
       String unit = readEnum("Unit (optional: 'Offensive', 'Defensive', 'Special Teams', 'Both'): ",
-                             false, Arrays.asList("Offensive", "Defensive", "Special Teams", "Both"));
+                             false, Arrays.asList("offensive", "defensive", "special teams", "both"));
       int mid = readInt("Manager ID (mid, required existing Manager ID): ", true, null, null);
       Integer reportsTo = readInt("Reports To Coach ID (optional existing cid, != cid): ", false, null, null);
 
@@ -852,7 +793,7 @@ public class EmbeddedSQL {
       Date hireDate = readDate("Hire Date (optional, YYYY-MM-DD): ", false);
       Integer exp = readInt("Experience in years (optional, >= 0): ", false, 0, null);
       String focus = readEnum("Focus (required: 'Offensive', 'Defensive', 'Both'): ",
-                              true, Arrays.asList("Offensive", "Defensive", "Both"));
+                              true, Arrays.asList("offensive", "defensive", "both"));
 
       String sql = "INSERT INTO Statistical_Team (stid, fname, lname, salary, hire_date, experience, focus) " +
                    "VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -981,7 +922,7 @@ public class EmbeddedSQL {
       System.out.println("\n-- Insert into Practices --");
       Date practiceDate = readDate("Date of Practice (required, YYYY-MM-DD): ", true);
       String session = readEnum("Session (required: 'Morning' or 'Afternoon'): ",
-                                true, Arrays.asList("Morning", "Afternoon"));
+                                true, Arrays.asList("morning", "afternoon"));
 
       String sql = "INSERT INTO Practices (date_of_practice, morning_afternoon) VALUES (?, ?)";
       try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -1187,10 +1128,10 @@ public class EmbeddedSQL {
       int pid = readInt("Player ID (pid, required existing pid): ", true, null, null);
       Date practiceDate = readDate("Date of Practice (required existing Practice date, YYYY-MM-DD): ", true);
       String session = readEnum("Session (required: 'Morning' or 'Afternoon'): ",
-                                true, Arrays.asList("Morning", "Afternoon"));
+                                true, Arrays.asList("morning", "afternoon"));
       boolean didPractice = readBoolean("Did Practice? (required: true/false): ", true);
       String excusedStatus = readEnum("Excused/Unexcused (optional: 'Excused', 'Unexcused', or Enter for NULL): ",
-                                      false, Arrays.asList("Excused", "Unexcused"));
+                                      false, Arrays.asList("excused", "unexcused"));
 
       String sql = "INSERT INTO Practices_In (pid, date_of_practice, morning_afternoon, did_practice, excused_unexcused) " +
                    "VALUES (?, ?, ?, ?, ?)";
@@ -1961,23 +1902,23 @@ public class EmbeddedSQL {
       // Table- and column-specific domain validation to catch invalid updates early
       if (colName.equals("morning_afternoon")) {
          return readEnum("New value for " + colName + " ('Morning' or 'Afternoon'): ",
-                         true, Arrays.asList("Morning", "Afternoon"));
+                         true, Arrays.asList("morning", "afternoon"));
       }
       if (colName.equals("regular_practice_squad")) {
          return readEnum("New value for " + colName + " ('Regular' or 'Practice Squad'): ",
-                         true, Arrays.asList("Regular", "Practice Squad"));
+                         true, Arrays.asList("regular", "practice squad"));
       }
       if (colName.equals("defensive_offensive")) {
          return readEnum("New value for " + colName + " ('Offensive', 'Defensive', 'Special Teams', 'Both', or Enter for NULL): ",
-                         false, Arrays.asList("Offensive", "Defensive", "Special Teams", "Both"));
+                         false, Arrays.asList("offensive", "defensive", "special teams", "both"));
       }
       if (colName.equals("focus")) {
          return readEnum("New value for " + colName + " ('Offensive', 'Defensive', 'Both'): ",
-                         true, Arrays.asList("Offensive", "Defensive", "Both"));
+                         true, Arrays.asList("offensive", "defensive", "both"));
       }
       if (colName.equals("excused_unexcused")) {
          return readEnum("New value for " + colName + " ('Excused', 'Unexcused', or Enter for NULL): ",
-                         false, Arrays.asList("Excused", "Unexcused"));
+                         false, Arrays.asList("excused", "unexcused"));
       }
       if (colName.equals("jersey_number")) {
          return readInt("New value for jersey_number (0-99, or Enter for NULL): ", false, 0, 99);
