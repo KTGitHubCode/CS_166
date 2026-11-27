@@ -1,0 +1,8 @@
+401|Priya|Nair|145000.00|2022-04-01|6|Offensive
+402|Liam|O'Connor|138000.00|2023-01-15|5|Defensive
+403|Maya|Lin|165000.00|2020-07-01|8|Both
+404|Julian|Vega|128000.00|2024-06-10|3|Offensive
+405|Hannah|Kim|152000.00|2021-08-15|7|Defensive
+406|Devon|Patel|134000.00|2023-09-01|4|Offensive
+407|Clara|morales|172000.00|2019-05-20|9|Both
+408|Ethan|keller|125000.00|2025-02-01|2|Defensive

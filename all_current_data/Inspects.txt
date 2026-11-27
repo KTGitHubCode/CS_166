@@ -1,0 +1,8 @@
+501|1007|High ankle sprain|21|2026-11-09
+502|1011|Mild hamstring tightness|5|2026-11-09
+501|1028|Grade 1 AC joint sprain|7|2026-11-09
+501|1035|Torn ACL (Season-Ending IR)|240|2026-10-10
+502|1036|Concussion protocol Stage 3|10|2026-11-09
+501|1042|Medial meniscus repair (IR)|60|2026-10-15
+502|1014|Mild oblique soreness|4|2026-11-24
+503|1020|Cervical neck stiffness|5|2026-11-24
