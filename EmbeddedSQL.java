@@ -2448,6 +2448,59 @@ public class EmbeddedSQL {
       return blockers;
    }
 
+   // Helper to find the active Head Coach (excluding cidToExclude)
+   private static Integer findHeadCoachCid(Connection conn, int cidToExclude) throws SQLException {
+      String sql = "SELECT cid FROM Coaches WHERE LOWER(position) = 'head coach' AND cid <> ? ORDER BY cid LIMIT 1";
+      try (PreparedStatement ps = conn.prepareStatement(sql)) {
+         ps.setInt(1, cidToExclude);
+         try (ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) return rs.getInt(1);
+         }
+      }
+      return null;
+   }
+
+   // Helper to find a matching Coordinator based on unit/specialty (defensive_offensive), falling back to any coordinator or Head Coach
+   private static Integer findCoordinatorCidForUnit(Connection conn, String unit, int cidToExclude) throws SQLException {
+      // 1. Exact unit match on a coordinator
+      if (unit != null && !unit.trim().isEmpty()) {
+         String exactSql = "SELECT cid FROM Coaches " +
+                           "WHERE LOWER(position) LIKE '%coordinator%' " +
+                           "AND LOWER(defensive_offensive) = LOWER(?) " +
+                           "AND cid <> ? ORDER BY cid LIMIT 1";
+         try (PreparedStatement ps = conn.prepareStatement(exactSql)) {
+            ps.setString(1, unit.trim());
+            ps.setInt(2, cidToExclude);
+            try (ResultSet rs = ps.executeQuery()) {
+               if (rs.next()) return rs.getInt(1);
+            }
+         }
+         // 2. Coordinator with 'both' unit if exact match wasn't found
+         String bothSql = "SELECT cid FROM Coaches " +
+                          "WHERE LOWER(position) LIKE '%coordinator%' " +
+                          "AND LOWER(defensive_offensive) = 'both' " +
+                          "AND cid <> ? ORDER BY cid LIMIT 1";
+         try (PreparedStatement ps = conn.prepareStatement(bothSql)) {
+            ps.setInt(1, cidToExclude);
+            try (ResultSet rs = ps.executeQuery()) {
+               if (rs.next()) return rs.getInt(1);
+            }
+         }
+      }
+      // 3. Any available coordinator
+      String anyCoordSql = "SELECT cid FROM Coaches " +
+                           "WHERE LOWER(position) LIKE '%coordinator%' " +
+                           "AND cid <> ? ORDER BY cid LIMIT 1";
+      try (PreparedStatement ps = conn.prepareStatement(anyCoordSql)) {
+         ps.setInt(1, cidToExclude);
+         try (ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) return rs.getInt(1);
+         }
+      }
+      // 4. Fallback to Head Coach if no coordinator exists
+      return findHeadCoachCid(conn, cidToExclude);
+   }
+
    // Preview all related records across all tables that will be cascaded/updated when deleting a record
    private static List<String> getCascadeImpactSummary(Connection conn, String tableName, List<QueryParam> pkParams) throws SQLException {
       List<String> impacts = new ArrayList<>();
@@ -2492,11 +2545,33 @@ public class EmbeddedSQL {
 
       } else if (tableName.equals("Coaches")) {
          int cid = (Integer) pkParams.get(0).value;
+         String deletedPos = "";
+         try (PreparedStatement ps = conn.prepareStatement("SELECT LOWER(position) FROM Coaches WHERE cid = ?")) {
+            ps.setInt(1, cid);
+            try (ResultSet rs = ps.executeQuery()) {
+               if (rs.next() && rs.getString(1) != null) deletedPos = rs.getString(1);
+            }
+         }
+
          int subordinates = countRefs(conn, "SELECT COUNT(*) FROM Coaches WHERE reports_to_cid = ?", cid);
+         if (subordinates > 0) {
+            if (deletedPos.equals("head coach")) {
+               impacts.add("Set reports_to_cid = NULL on " + subordinates + " subordinate coach(es) (Head Coach deleted)");
+            } else if (deletedPos.contains("coordinator")) {
+               Integer headCid = findHeadCoachCid(conn, cid);
+               if (headCid != null) {
+                  impacts.add("Reassign " + subordinates + " subordinate coach(es) to report to the Head Coach (cid=" + headCid + ")");
+               } else {
+                  impacts.add("Set reports_to_cid = NULL on " + subordinates + " subordinate coach(es) (no Head Coach found)");
+               }
+            } else {
+               // Assistant / position coach deleted: reassign any subordinates to a coordinator matching their specialty
+               impacts.add("Reassign " + subordinates + " subordinate coach(es) to a Coordinator matching their unit/specialty (or Head Coach)");
+            }
+         }
+
          int whoCoaches = countRefs(conn, "SELECT COUNT(*) FROM Who_Coaches WHERE cid = ?", cid);
          int inGames = countRefs(conn, "SELECT COUNT(*) FROM Coach_In_Game WHERE cid = ?", cid);
-
-         if (subordinates > 0) impacts.add("Clear reports_to_cid (set to NULL) on " + subordinates + " subordinate coach(es) in Coaches");
          if (whoCoaches > 0) impacts.add("Delete " + whoCoaches + " player coaching log(s) from Who_Coaches");
          if (inGames > 0) impacts.add("Delete " + inGames + " game participation record(s) from Coach_In_Game");
 
@@ -2576,7 +2651,53 @@ public class EmbeddedSQL {
 
       } else if (tableName.equals("Coaches")) {
          int cid = (Integer) pkParams.get(0).value;
-         executeDeleteByIntId(conn, "UPDATE Coaches SET reports_to_cid = NULL WHERE reports_to_cid = ?", cid);
+         String deletedPos = "";
+         try (PreparedStatement ps = conn.prepareStatement("SELECT LOWER(position) FROM Coaches WHERE cid = ?")) {
+            ps.setInt(1, cid);
+            try (ResultSet rs = ps.executeQuery()) {
+               if (rs.next() && rs.getString(1) != null) deletedPos = rs.getString(1);
+            }
+         }
+
+         if (deletedPos.equals("head coach")) {
+            // Rule 1: Deleting Head Coach -> set subordinates' reports_to_cid to NULL
+            executeDeleteByIntId(conn, "UPDATE Coaches SET reports_to_cid = NULL WHERE reports_to_cid = ?", cid);
+         } else if (deletedPos.contains("coordinator")) {
+            // Rule 3: Deleting Coordinator -> reassign everyone reporting to them to the Head Coach
+            Integer headCid = findHeadCoachCid(conn, cid);
+            try (PreparedStatement upd = conn.prepareStatement("UPDATE Coaches SET reports_to_cid = ? WHERE reports_to_cid = ?")) {
+               setNullableInt(upd, 1, headCid);
+               upd.setInt(2, cid);
+               upd.executeUpdate();
+            }
+         } else {
+            // Rule 2: Deleting Assistant / Position Coach -> reassign subordinates to a Coordinator matching their specialty
+            List<Integer> subCids = new ArrayList<>();
+            List<String> subUnits = new ArrayList<>();
+            try (PreparedStatement subPs = conn.prepareStatement("SELECT cid, defensive_offensive FROM Coaches WHERE reports_to_cid = ?")) {
+               subPs.setInt(1, cid);
+               try (ResultSet subRs = subPs.executeQuery()) {
+                  while (subRs.next()) {
+                     subCids.add(subRs.getInt(1));
+                     subUnits.add(subRs.getString(2));
+                  }
+               }
+            }
+            for (int i = 0; i < subCids.size(); i++) {
+               int subCid = subCids.get(i);
+               String subUnit = subUnits.get(i);
+               Integer targetCoordCid = findCoordinatorCidForUnit(conn, subUnit, cid);
+               if (targetCoordCid != null && targetCoordCid == subCid) {
+                  targetCoordCid = findHeadCoachCid(conn, cid);
+               }
+               try (PreparedStatement upd = conn.prepareStatement("UPDATE Coaches SET reports_to_cid = ? WHERE cid = ?")) {
+                  setNullableInt(upd, 1, targetCoordCid);
+                  upd.setInt(2, subCid);
+                  upd.executeUpdate();
+               }
+            }
+         }
+
          executeDeleteByIntId(conn, "DELETE FROM Who_Coaches WHERE cid = ?", cid);
          executeDeleteByIntId(conn, "DELETE FROM Coach_In_Game WHERE cid = ?", cid);
 
