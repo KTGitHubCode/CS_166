@@ -242,13 +242,11 @@ public class EmbeddedSQL {
             "ELSE 'Compliant' " +
             "END AS status " +
             "FROM Team_Players " +
-            "GROUP BY regular_practice_squad;";
-         System.out.print("\tEnter cost: $");
-         String input = in.readLine();
-         query += input;
+            "GROUP BY regular_practice_squad; ";
 
          int rowCount = esql.executeQuery(query);
          System.out.println ("total row(s): " + rowCount);
+
       }catch(Exception e){
          System.err.println (e.getMessage());
       }
@@ -257,15 +255,11 @@ public class EmbeddedSQL {
  
 public static void Query1(EmbeddedSQL esql){
    try{
-         String query = "SELECT regular_practice_squad, " +
-            "COUNT(*) AS player_count, " +
-            "CASE " +
-            "WHEN regular_practice_squad = 'Regular' AND COUNT(*) > 53 THEN 'OVER LIMIT' " +
-            "WHEN regular_practice_squad = 'Practice Squad' AND COUNT(*) > 17 THEN 'OVER LIMIT' " +
-            "ELSE 'Compliant' " +
-            "END AS status " +
-            "FROM Team_Players " +
-            "GROUP BY regular_practice_squad;";
+         String query = "SELECT jersey_number, pid, fname, lname, regular_practice_squad, " +
+                        "FROM Team_Players, " +
+                        "WHERE jersey_number IN (12, 28, 54, 81), " +
+                        "ORDER BY jersey_number, regular_practice_squad; ";
+
       int rowCount = esql.executeQuery(query);
       System.out.println("total row(s): " + rowCount);
 
@@ -277,13 +271,10 @@ public static void Query1(EmbeddedSQL esql){
 
    public static void Query2(EmbeddedSQL esql){
       try{
-      String query =
-         "SELECT s.sname, COUNT(*) " +
-         "FROM suppliers s " +
-         "JOIN catalog c ON c.sid = s.sid " +
-         "JOIN parts p ON p.pid = c.pid " +
-         "GROUP BY s.sid " +
-         "HAVING COUNT(*) >= 3 ";
+      String query = "SELECT tp.fname, tp.lname, o.passing_yards, o.rushing_yards, o.receiving_yards, " +
+                     "FROM Team_Players tp, " +
+                     "JOIN Offensive_Stats_Home o ON tp.pid = o.pid, " +
+                     "WHERE o.passing_yards < 0 OR o.rushing_yards < 0 OR o.receiving_yards < 0; ";
 
       int rowCount = esql.executeQuery(query);
       System.out.println("total row(s): " + rowCount);
@@ -295,13 +286,7 @@ public static void Query1(EmbeddedSQL esql){
 
    public static void Query3(EmbeddedSQL esql){
       try{
-      String query =
-         "SELECT s.sname, COUNT(*) " +
-         "FROM suppliers s " +
-         "JOIN catalog c ON c.sid = s.sid " +
-         "JOIN parts p ON p.pid = c.pid " +
-         "WHERE p.color = 'Green' " +
-         "GROUP BY s.sid";
+      String query = "SELECT * FROM vw_franchise_payroll; "
 
       int rowCount = esql.executeQuery(query);
       System.out.println("total row(s): " + rowCount);
