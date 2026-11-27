@@ -23,3 +23,4 @@ WHERE o.passing_yards < 0 OR o.rushing_yards < 0 OR o.receiving_yards < 0;
 
 -- 4. Confirm Full Franchise Payroll Across All 7 Employee Tables
 SELECT * FROM vw_franchise_payroll;
+

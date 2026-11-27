@@ -175,7 +175,6 @@ public class EmbeddedSQL {
             System.out.println("2. Find the total number of parts supplied by each supplier who supplies at least 3 parts");
             System.out.println("3. For every supplier that supplies only green parts, print the name of the supplier and the total number of parts that he supplies");
             System.out.println("4. For every supplier that supplies green part and red part, print the name and the price of the most expensive part that he supplies"); 
-            System.out.println("5. Find the name of parts with cost lower than $_____");
             System.out.println("6. Find the address of the suppliers who supply _____________ (pname)");
             System.out.println("9. < EXIT");
 
@@ -186,7 +185,6 @@ public class EmbeddedSQL {
                case 3: Query3(esql); break;
                case 4: Query4(esql); break;
                case 5: Query5(esql); break;
-               case 6: Query6(esql); break;
                case 9: keepon = false; break;
                default : System.out.println("Unrecognized choice!"); break;
             }//end switch
@@ -236,7 +234,15 @@ public class EmbeddedSQL {
 
    public static void QueryExample(EmbeddedSQL esql){
       try{
-         String query = "SELECT * FROM Catalog WHERE cost < ";
+         String query = "SELECT regular_practice_squad, " +
+            "COUNT(*) AS player_count, " +
+            "CASE " +
+            "WHEN regular_practice_squad = 'Regular' AND COUNT(*) > 53 THEN 'OVER LIMIT' " +
+            "WHEN regular_practice_squad = 'Practice Squad' AND COUNT(*) > 17 THEN 'OVER LIMIT' " +
+            "ELSE 'Compliant' " +
+            "END AS status " +
+            "FROM Team_Players " +
+            "GROUP BY regular_practice_squad;";
          System.out.print("\tEnter cost: $");
          String input = in.readLine();
          query += input;
@@ -251,13 +257,15 @@ public class EmbeddedSQL {
  
 public static void Query1(EmbeddedSQL esql){
    try{
-      String query =
-         "SELECT s.sname, COUNT(*) " +
-         "FROM suppliers s " +
-         "JOIN catalog c ON c.sid = s.sid " +
-         "JOIN parts p ON p.pid = c.pid " +
-         "GROUP BY s.sid";
-
+         String query = "SELECT regular_practice_squad, " +
+            "COUNT(*) AS player_count, " +
+            "CASE " +
+            "WHEN regular_practice_squad = 'Regular' AND COUNT(*) > 53 THEN 'OVER LIMIT' " +
+            "WHEN regular_practice_squad = 'Practice Squad' AND COUNT(*) > 17 THEN 'OVER LIMIT' " +
+            "ELSE 'Compliant' " +
+            "END AS status " +
+            "FROM Team_Players " +
+            "GROUP BY regular_practice_squad;";
       int rowCount = esql.executeQuery(query);
       System.out.println("total row(s): " + rowCount);
 
