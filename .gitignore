@@ -19,3 +19,11 @@
 
 # Temporary files
 *.tmp
+
+README.md
+compile.sh
+createDB.sh
+startDB.sh
+stopDB.sh
+compliance_script.sql
+validity.sql
