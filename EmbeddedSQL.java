@@ -133,9 +133,12 @@ public class EmbeddedSQL {
    }
 
    public static int printDetailedResultSet(ResultSet rs) throws SQLException {
+      return printDetailedResultSet(rs, false);
+   }
+
+   public static int printDetailedResultSet(ResultSet rs, boolean paginateInHalves) throws SQLException {
       ResultSetMetaData rsmd = rs.getMetaData();
       int numCol = rsmd.getColumnCount();
-      int rowCount = 0;
 
       // Compute max label width so scalar fields align cleanly
       int maxLabelWidth = 0;
@@ -149,69 +152,108 @@ public class EmbeddedSQL {
          }
       }
 
+      // Pre-format each record block so we know the exact total count and can split cleanly in half
+      List<String> formattedRecords = new ArrayList<>();
       while (rs.next()) {
-         rowCount++;
-         System.out.println("================================================================================");
-         System.out.println(" RECORD #" + rowCount);
-         System.out.println("================================================================================");
-
+         StringBuilder sb = new StringBuilder();
          for (int i = 0; i < numCol; i++) {
             String label = labels[i];
             String val = rs.getString(i + 1);
 
             if (val == null) {
-               System.out.printf("  %-" + maxLabelWidth + "s : NULL%n", label);
+               sb.append(String.format("  %-" + maxLabelWidth + "s : NULL%n", label));
                continue;
             }
 
             // 1. PostgreSQL Array columns (e.g., list_of_plays, list_of_stats, schedule, field_goal_kick_lengths)
             if (colTypes[i] == Types.ARRAY) {
-               System.out.printf("  %-" + maxLabelWidth + "s :%n", label);
+               sb.append(String.format("  %-" + maxLabelWidth + "s :%n", label));
                Array sqlArr = rs.getArray(i + 1);
                Object rawArr = (sqlArr != null) ? sqlArr.getArray() : null;
                if (rawArr instanceof Object[]) {
                   Object[] items = (Object[]) rawArr;
                   if (items.length == 0) {
-                     System.out.println("      (empty list)");
+                     sb.append("      (empty list)\n");
                   } else {
                      for (Object item : items) {
-                        System.out.println("      - " + item);
+                        sb.append("      - ").append(item).append("\n");
                      }
                   }
                } else {
                   // Fallback for older JDBC drivers that return "{a,b,c}" as a String
                   String stripped = val.replaceAll("^\\{|\\}$", "");
                   if (stripped.isEmpty()) {
-                     System.out.println("      (empty list)");
+                     sb.append("      (empty list)\n");
                   } else {
                      for (String item : stripped.split(",")) {
-                        System.out.println("      - " + item.replaceAll("^\"|\"$", "").trim());
+                        sb.append("      - ").append(item.replaceAll("^\"|\"$", "").trim()).append("\n");
                      }
                   }
                }
             }
             // 2. Long semicolon-separated text logs (e.g., play_by_play, home_team_plays, away_team_plays)
             else if (val.contains(";") && val.length() > 45) {
-               System.out.printf("  %-" + maxLabelWidth + "s :%n", label);
+               sb.append(String.format("  %-" + maxLabelWidth + "s :%n", label));
                for (String item : val.split(";")) {
                   String trimmed = item.trim();
                   if (!trimmed.isEmpty()) {
-                     System.out.println("      - " + trimmed);
+                     sb.append("      - ").append(trimmed).append("\n");
                   }
                }
             }
             // 3. Standard single-line attributes
             else {
-               System.out.printf("  %-" + maxLabelWidth + "s : %s%n", label, val);
+               sb.append(String.format("  %-" + maxLabelWidth + "s : %s%n", label, val));
             }
          }
-         System.out.println();
+         formattedRecords.add(sb.toString());
       }
 
-      if (rowCount == 0) {
+      int totalRows = formattedRecords.size();
+      if (totalRows == 0) {
          System.out.println("(No records found)");
+         return 0;
       }
-      return rowCount;
+
+      int splitIdx = (paginateInHalves && totalRows > 1) ? (totalRows + 1) / 2 : totalRows;
+
+      for (int idx = 0; idx < splitIdx; idx++) {
+         System.out.println("================================================================================");
+         System.out.println(" RECORD #" + (idx + 1) + (paginateInHalves && totalRows > 1 ? " of " + totalRows : ""));
+         System.out.println("================================================================================");
+         System.out.println(formattedRecords.get(idx));
+      }
+
+      if (splitIdx < totalRows) {
+         System.out.println("--- Showing first half: Records 1 to " + splitIdx + " of " + totalRows + " ---");
+         while (true) {
+            System.out.print("Enter 1 to view the second half (Records " + (splitIdx + 1) + " to " + totalRows + "), or 0 to stop: ");
+            try {
+               String line = in.readLine();
+               if (line == null) break;
+               int nav = Integer.parseInt(line.trim());
+               if (nav == 1) {
+                  System.out.println();
+                  for (int idx = splitIdx; idx < totalRows; idx++) {
+                     System.out.println("================================================================================");
+                     System.out.println(" RECORD #" + (idx + 1) + " of " + totalRows);
+                     System.out.println("================================================================================");
+                     System.out.println(formattedRecords.get(idx));
+                  }
+                  break;
+               } else if (nav == 0) {
+                  System.out.println("(Skipped remaining records)");
+                  break;
+               } else {
+                  System.out.println("Invalid input! Please enter 1 for the second half or 0 to stop.");
+               }
+            } catch (Exception e) {
+               System.out.println("Invalid input! Please enter 1 for the second half or 0 to stop.");
+            }
+         }
+      }
+
+      return totalRows;
    }
 
    private static boolean hasListOrLongColumns(ResultSetMetaData rsmd) throws SQLException {
@@ -238,8 +280,12 @@ public class EmbeddedSQL {
    }
 
    private static int printSmartResultSet(ResultSet rs) throws SQLException {
+      return printSmartResultSet(rs, false);
+   }
+
+   private static int printSmartResultSet(ResultSet rs, boolean paginateInHalves) throws SQLException {
       if (hasListOrLongColumns(rs.getMetaData())) {
-         return printDetailedResultSet(rs);
+         return printDetailedResultSet(rs, paginateInHalves);
       } else {
          return printResultSet(rs);
       }
@@ -1880,7 +1926,7 @@ public class EmbeddedSQL {
          try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
             bindQueryParams(conn, ps, params);
             try (ResultSet rs = ps.executeQuery()) {
-               int rowCount = printSmartResultSet(rs);
+               int rowCount = printSmartResultSet(rs, config.rawTableName.equals("Team_Players"));
                System.out.println("\ntotal row(s): " + rowCount);
             }
          }
@@ -1998,7 +2044,7 @@ public class EmbeddedSQL {
                              (config.defaultOrderBy != null ? " ORDER BY " + config.defaultOrderBy : "");
             try (PreparedStatement listPs = conn.prepareStatement(listSql);
                  ResultSet listRs = listPs.executeQuery()) {
-               printSmartResultSet(listRs);
+               printSmartResultSet(listRs, config.rawTableName.equals("Team_Players"));
             }
          }
 
