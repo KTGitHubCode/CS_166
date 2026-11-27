@@ -329,8 +329,8 @@ public class EmbeddedSQL {
             System.out.println("0. Insert a new record into any table");
             System.out.println("1. Search and retrieve records across any table");
             System.out.println("2. Update existing records in any table (with before & after view)");
-            System.out.println("3. View franchise payroll (vw_franchise_payroll)");
-            System.out.println("4. Query 4");
+            System.out.println("3. Delete records from any table (with constraint & business rule checks)");
+            System.out.println("4. View franchise payroll (vw_franchise_payroll)");
             System.out.println("5. Query 5");
             System.out.println("6. Query 6");
             System.out.println("9. < EXIT");
@@ -2169,35 +2169,284 @@ public class EmbeddedSQL {
    // REMAINING QUERIES
    // =========================================================================
 
-   public static void Query3(EmbeddedSQL esql){
-      try{
-         String query = "SELECT * FROM vw_franchise_payroll;";
+   // =========================================================================
+   // QUERY 3: DELETE RECORDS FROM ANY OF THE 26 TABLES (WITH RULE CHECKS)
+   // =========================================================================
 
-         int rowCount = esql.executeQuery(query);
-         System.out.println("total row(s): " + rowCount);
-      }catch(Exception e){
-         System.err.println(e.getMessage());
+   private static List<String> checkDeleteBusinessRules(Connection conn, String tableName, List<QueryParam> pkParams) throws SQLException {
+      List<String> blockers = new ArrayList<>();
+
+      if (tableName.equals("Managers")) {
+         int mid = (Integer) pkParams.get(0).value;
+         int players = countRefs(conn, "SELECT COUNT(*) FROM Team_Players WHERE mid = ?", mid);
+         int coaches = countRefs(conn, "SELECT COUNT(*) FROM Coaches WHERE mid = ?", mid);
+         int staff = countRefs(conn, "SELECT COUNT(*) FROM Manages_reg_staff WHERE mid = ?", mid);
+         if (players > 0) {
+            blockers.add("Manager (mid=" + mid + ") still oversees " + players + " player(s) in Team_Players. Reassign those players to another manager first.");
+         }
+         if (coaches > 0) {
+            blockers.add("Manager (mid=" + mid + ") still oversees " + coaches + " coach(es) in Coaches. Reassign those coaches to another manager first.");
+         }
+         if (staff > 0) {
+            blockers.add("Manager (mid=" + mid + ") is still assigned to " + staff + " regular staff schedule(s) in Manages_reg_staff. Remove or reassign those assignments first.");
+         }
+      } else if (tableName.equals("Team_Players")) {
+         int pid = (Integer) pkParams.get(0).value;
+         int mentees = countRefs(conn, "SELECT COUNT(*) FROM Team_Players WHERE mentor_pid = ?", pid);
+         int whoCoaches = countRefs(conn, "SELECT COUNT(*) FROM Who_Coaches WHERE pid = ?", pid);
+         int plays = countRefs(conn, "SELECT COUNT(*) FROM Team_Plays WHERE pid = ?", pid);
+         int analyses = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Team WHERE pid = ?", pid);
+         int practices = countRefs(conn, "SELECT COUNT(*) FROM Practices_In WHERE pid = ?", pid);
+         int inspects = countRefs(conn, "SELECT COUNT(*) FROM Inspects WHERE pid = ?", pid);
+         int worksOn = countRefs(conn, "SELECT COUNT(*) FROM Works_on WHERE pid = ?", pid);
+         if (mentees > 0) {
+            blockers.add("Player (pid=" + pid + ") is currently a mentor to " + mentees + " other player(s) in Team_Players (mentor_pid). Clear or reassign their mentor_pid first.");
+         }
+         if (whoCoaches > 0) {
+            blockers.add("Player (pid=" + pid + ") has " + whoCoaches + " coaching log(s) in Who_Coaches.");
+         }
+         if (plays > 0) {
+            blockers.add("Player (pid=" + pid + ") has " + plays + " game play log(s) in Team_Plays.");
+         }
+         if (analyses > 0) {
+            blockers.add("Player (pid=" + pid + ") has " + analyses + " scouting/statistical report(s) in Analyze_Team.");
+         }
+         if (practices > 0) {
+            blockers.add("Player (pid=" + pid + ") has " + practices + " attendance record(s) in Practices_In.");
+         }
+         if (inspects > 0) {
+            blockers.add("Player (pid=" + pid + ") has " + inspects + " medical inspection record(s) in Inspects.");
+         }
+         if (worksOn > 0) {
+            blockers.add("Player (pid=" + pid + ") has " + worksOn + " athletic trainer session(s) in Works_on.");
+         }
+      } else if (tableName.equals("Opposing_Players")) {
+         int opid = (Integer) pkParams.get(0).value;
+         int plays = countRefs(conn, "SELECT COUNT(*) FROM Opposing_Plays WHERE opid = ?", opid);
+         int analyses = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Opposing WHERE opid = ?", opid);
+         if (plays > 0) {
+            blockers.add("Opposing player (opid=" + opid + ") has " + plays + " game play log(s) in Opposing_Plays.");
+         }
+         if (analyses > 0) {
+            blockers.add("Opposing player (opid=" + opid + ") has " + analyses + " scouting report(s) in Analyze_Opposing.");
+         }
+      } else if (tableName.equals("Coaches")) {
+         int cid = (Integer) pkParams.get(0).value;
+         int subordinates = countRefs(conn, "SELECT COUNT(*) FROM Coaches WHERE reports_to_cid = ?", cid);
+         int whoCoaches = countRefs(conn, "SELECT COUNT(*) FROM Who_Coaches WHERE cid = ?", cid);
+         int inGames = countRefs(conn, "SELECT COUNT(*) FROM Coach_In_Game WHERE cid = ?", cid);
+         if (subordinates > 0) {
+            blockers.add("Coach (cid=" + cid + ") supervises " + subordinates + " subordinate coach(es) in Coaches (reports_to_cid). Reassign their supervisor first.");
+         }
+         if (whoCoaches > 0) {
+            blockers.add("Coach (cid=" + cid + ") has " + whoCoaches + " player coaching record(s) in Who_Coaches.");
+         }
+         if (inGames > 0) {
+            blockers.add("Coach (cid=" + cid + ") is logged in " + inGames + " game participation record(s) in Coach_In_Game.");
+         }
+      } else if (tableName.equals("Statistical_Team")) {
+         int stid = (Integer) pkParams.get(0).value;
+         int teamReports = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Team WHERE stid = ?", stid);
+         int oppReports = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Opposing WHERE stid = ?", stid);
+         if (teamReports > 0) {
+            blockers.add("Analyst (stid=" + stid + ") authored " + teamReports + " report(s) in Analyze_Team.");
+         }
+         if (oppReports > 0) {
+            blockers.add("Analyst (stid=" + stid + ") authored " + oppReports + " report(s) in Analyze_Opposing.");
+         }
+      } else if (tableName.equals("Team_Doctors")) {
+         int did = (Integer) pkParams.get(0).value;
+         int inspects = countRefs(conn, "SELECT COUNT(*) FROM Inspects WHERE did = ?", did);
+         if (inspects > 0) {
+            blockers.add("Doctor (did=" + did + ") has " + inspects + " medical examination record(s) in Inspects.");
+         }
+      } else if (tableName.equals("Trainers")) {
+         int tid = (Integer) pkParams.get(0).value;
+         int worksOn = countRefs(conn, "SELECT COUNT(*) FROM Works_on WHERE tid = ?", tid);
+         if (worksOn > 0) {
+            blockers.add("Trainer (tid=" + tid + ") has " + worksOn + " player treatment/rehab record(s) in Works_on.");
+         }
+      } else if (tableName.equals("Regular_Staff")) {
+         int jib = (Integer) pkParams.get(0).value;
+         int assignments = countRefs(conn, "SELECT COUNT(*) FROM Manages_reg_staff WHERE jib = ?", jib);
+         if (assignments > 0) {
+            blockers.add("Regular staff member (jib=" + jib + ") still has " + assignments + " active managerial schedule assignment(s) in Manages_reg_staff. Delete the Manages_reg_staff assignment(s) first.");
+         }
+      } else if (tableName.equals("Games")) {
+         int gid = (Integer) pkParams.get(0).value;
+         int coachGames = countRefs(conn, "SELECT COUNT(*) FROM Coach_In_Game WHERE gid = ?", gid);
+         int teamPlays = countRefs(conn, "SELECT COUNT(*) FROM Team_Plays WHERE gid = ?", gid);
+         int oppPlays = countRefs(conn, "SELECT COUNT(*) FROM Opposing_Plays WHERE gid = ?", gid);
+         if (coachGames > 0) {
+            blockers.add("Game (gid=" + gid + ") has " + coachGames + " coach participation record(s) in Coach_In_Game.");
+         }
+         if (teamPlays > 0) {
+            blockers.add("Game (gid=" + gid + ") has " + teamPlays + " home player play log(s) in Team_Plays.");
+         }
+         if (oppPlays > 0) {
+            blockers.add("Game (gid=" + gid + ") has " + oppPlays + " opposing player play log(s) in Opposing_Plays.");
+         }
+      } else if (tableName.equals("Practices")) {
+         Date practiceDate = (Date) pkParams.get(0).value;
+         String session = (String) pkParams.get(1).value;
+         try (PreparedStatement ps = conn.prepareStatement(
+               "SELECT COUNT(*) FROM Practices_In WHERE date_of_practice = ? AND LOWER(morning_afternoon) = LOWER(?)")) {
+            ps.setDate(1, practiceDate);
+            ps.setString(2, session);
+            try (ResultSet rs = ps.executeQuery()) {
+               if (rs.next() && rs.getInt(1) > 0) {
+                  blockers.add("Practice session (" + practiceDate + ", " + session + ") has " + rs.getInt(1) + " player attendance log(s) in Practices_In.");
+               }
+            }
+         }
+      } else if (tableName.equals("Manages_reg_staff")) {
+         // Business Rule (trg_require_regular_staff_manager): Every Regular_Staff member must have at least one manager
+         int mid = (Integer) pkParams.get(0).value;
+         int jib = (Integer) pkParams.get(1).value;
+         int totalManagers = countRefs(conn, "SELECT COUNT(*) FROM Manages_reg_staff WHERE jib = ?", jib);
+         if (totalManagers <= 1) {
+            blockers.add("Business Rule Violation: Regular staff member (jib=" + jib + ") must always have at least one supervising manager in Manages_reg_staff (mid=" + mid + " is their sole manager). Assign another manager first or delete the Regular_Staff record instead.");
+         }
+      }
+
+      return blockers;
+   }
+
+   private static int countRefs(Connection conn, String countSql, int idVal) throws SQLException {
+      try (PreparedStatement ps = conn.prepareStatement(countSql)) {
+         ps.setInt(1, idVal);
+         try (ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+         }
       }
    }
 
+   private static void printDeleteWarnings(String tableName) {
+      if (tableName.equals("Team_Players")) {
+         System.out.println("  [Note] Deleting a Team_Players record will also automatically cascade-delete any 1:1 cumulative stats in Offensive_Stats_Home, Defensive_Stats_Home, and Special_Teams_Stats_Home.");
+      } else if (tableName.equals("Opposing_Players")) {
+         System.out.println("  [Note] Deleting an Opposing_Players record will also automatically cascade-delete any 1:1 cumulative stats in Offensive_Stats_Away, Defensive_Stats_Away, and Special_Teams_Stats_Away.");
+      }
+   }
+
+   public static void Query3(EmbeddedSQL esql) {
+      printAllTablesMenu("DELETE RECORD FROM TABLE");
+
+      int choice = readChoice();
+      if (choice == 0) return;
+
+      SearchTableConfig config = getTableConfig(choice);
+      if (config == null) {
+         System.out.println("Invalid table selection.");
+         return;
+      }
+
+      Connection conn = esql.getConnection();
+      try {
+         System.out.println("\nSelected Table: " + config.tableName);
+
+         // Optional quick lookup so user can see existing records and primary keys
+         boolean showCurrent = readBoolean("Would you like to view current records in " + config.rawTableName + " first? (yes/no): ", true);
+         if (showCurrent) {
+            String listSql = config.baseSelectFrom +
+                             (config.defaultOrderBy != null ? " ORDER BY " + config.defaultOrderBy : "");
+            try (PreparedStatement listPs = conn.prepareStatement(listSql);
+                 ResultSet listRs = listPs.executeQuery()) {
+               printSmartResultSet(listRs);
+            }
+         }
+
+         // Step 1: Identify target record by Primary Key(s)
+         List<SearchColumn> pkCols = config.getPrimaryKeys();
+         System.out.println("\nStep 1: Enter the Primary Key value(s) of the record to delete:");
+         List<QueryParam> pkParams = new ArrayList<>();
+         List<String> selectWhere = new ArrayList<>();
+         List<String> deleteWhere = new ArrayList<>();
+
+         for (SearchColumn pkCol : pkCols) {
+            Object pkVal = readTypedScalar("  " + pkCol.label + " (" + pkCol.type + ", required): ", pkCol.type, true);
+            pkParams.add(new QueryParam(pkCol.type, pkVal));
+            if (pkCol.type == ColType.STRING) {
+               selectWhere.add("LOWER(" + pkCol.sqlExpr + ") = LOWER(?)");
+               deleteWhere.add("LOWER(" + pkCol.label + ") = LOWER(?)");
+            } else {
+               selectWhere.add(pkCol.sqlExpr + " = ?");
+               deleteWhere.add(pkCol.label + " = ?");
+            }
+         }
+
+         // Step 2: Fetch and display target record before deletion
+         String fetchSql = config.baseSelectFrom + " WHERE " + String.join(" AND ", selectWhere);
+         System.out.println("\n--- TARGET RECORD TO DELETE ---");
+         int foundRows;
+         try (PreparedStatement beforePs = conn.prepareStatement(fetchSql)) {
+            bindQueryParams(conn, beforePs, pkParams);
+            try (ResultSet beforeRs = beforePs.executeQuery()) {
+               foundRows = printSmartResultSet(beforeRs);
+            }
+         }
+
+         if (foundRows == 0) {
+            System.out.println("[Notice] No matching record found with the given primary key(s). Deletion aborted.");
+            return;
+         }
+
+         // Step 3: Proactively check Foreign Key references and Franchise Business Rules
+         List<String> blockers = checkDeleteBusinessRules(conn, config.rawTableName, pkParams);
+         if (!blockers.isEmpty()) {
+            System.out.println("\n[Deletion Blocked] Cannot delete this record from " + config.rawTableName + " due to the following constraint(s) / business rule(s):");
+            for (int i = 0; i < blockers.size(); i++) {
+               System.out.println("  " + (i + 1) + ". " + blockers.get(i));
+            }
+            System.out.println("No changes were made to the database.");
+            return;
+         }
+
+         // Step 4: Warn about automatic ON DELETE CASCADE side effects (e.g., 1:1 stats) and confirm
+         printDeleteWarnings(config.rawTableName);
+         boolean confirm = readBoolean("\nAre you sure you want to permanently delete this record? (yes/no): ", true);
+         if (!confirm) {
+            System.out.println("Deletion cancelled by user. No changes were made.");
+            return;
+         }
+
+         // Step 5: Execute DELETE inside a transaction and handle any database-level constraint errors cleanly
+         String deleteSql = "DELETE FROM " + config.rawTableName + " WHERE " + String.join(" AND ", deleteWhere);
+         boolean prevAutoCommit = conn.getAutoCommit();
+         conn.setAutoCommit(false);
+         try (PreparedStatement deletePs = conn.prepareStatement(deleteSql)) {
+            bindQueryParams(conn, deletePs, pkParams);
+            int affected = deletePs.executeUpdate();
+            conn.commit();
+            System.out.println("\nSuccess: " + affected + " record(s) permanently deleted from " + config.rawTableName + ".");
+         } catch (SQLException sqlEx) {
+            conn.rollback();
+            System.err.println("\n[Deletion Restricted] Database rejected the deletion and rolled back (SQLState: " + sqlEx.getSQLState() + "):");
+            if ("23503".equals(sqlEx.getSQLState())) {
+               System.err.println("  Foreign Key Constraint Violation: Other records in the database still reference this record.");
+            } else if ("P0001".equals(sqlEx.getSQLState())) {
+               System.err.println("  Business Rule Trigger Violation: Deleting this record violates a franchise integrity rule.");
+            }
+            System.err.println("  Details: " + sqlEx.getMessage());
+         } finally {
+            conn.setAutoCommit(prevAutoCommit);
+         }
+
+      } catch (SQLException e) {
+         System.err.println("\n[Database Error] Delete operation failed (SQLState: " + e.getSQLState() + "):");
+         System.err.println("  " + e.getMessage());
+      } catch (IOException e) {
+         System.err.println("\n[Input Error] Failed reading input: " + e.getMessage());
+      }
+   }
+
+   // =========================================================================
+   // QUERY 4: VIEW FRANCHISE PAYROLL
+   // =========================================================================
+
    public static void Query4(EmbeddedSQL esql){
       try{
-         String query =
-            "SELECT s.sname, MAX(c.cost) " +
-            "FROM suppliers s " +
-            "JOIN catalog c ON c.sid = s.sid " +
-            "WHERE s.sid IN ( " +
-            "    SELECT c.sid " +
-            "    FROM catalog c " +
-            "    JOIN parts p ON p.pid = c.pid " +
-            "    WHERE p.color = 'Green' " +
-            "    INTERSECT " +
-            "    SELECT c.sid " +
-            "    FROM catalog c " +
-            "    JOIN parts p ON p.pid = c.pid " +
-            "    WHERE p.color = 'Red' " +
-            ") " +
-            "GROUP BY s.sname";
+         String query = "SELECT * FROM vw_franchise_payroll;";
 
          int rowCount = esql.executeQuery(query);
          System.out.println("total row(s): " + rowCount);
