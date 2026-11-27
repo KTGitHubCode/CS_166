@@ -1940,377 +1940,478 @@ public class EmbeddedSQL {
    }
 
    // =========================================================================
+   // BACKWARD NAVIGATION HELPER FOR UPDATE & DELETE
+   // =========================================================================
+
+   private static class BackNavigationException extends Exception {
+      BackNavigationException() {
+         super("User navigated backward.");
+      }
+   }
+
+   private static boolean isBackCommand(String val) {
+      if (val == null) return false;
+      String t = val.trim().toLowerCase();
+      return t.equals("backward") || t.equals("back");
+   }
+
+   private static String readRequiredStringBack(String prompt) throws IOException, BackNavigationException {
+      while (true) {
+         System.out.print(prompt);
+         String val = in.readLine();
+         if (isBackCommand(val)) throw new BackNavigationException();
+         if (val != null && !val.trim().isEmpty()) {
+            return val.trim().toLowerCase();
+         }
+         System.out.println("  [Error] This field is required and cannot be empty (or type 'backward' to go back).");
+      }
+   }
+
+   private static String readOptionalStringBack(String prompt) throws IOException, BackNavigationException {
+      System.out.print(prompt);
+      String val = in.readLine();
+      if (isBackCommand(val)) throw new BackNavigationException();
+      if (val == null || val.trim().isEmpty()) {
+         return null;
+      }
+      return val.trim().toLowerCase();
+   }
+
+   private static Integer readIntBack(String prompt, boolean required, Integer min, Integer max) throws IOException, BackNavigationException {
+      while (true) {
+         System.out.print(prompt);
+         String val = in.readLine();
+         if (isBackCommand(val)) throw new BackNavigationException();
+         if (val == null || val.trim().isEmpty()) {
+            if (!required) return null;
+            System.out.println("  [Error] Integer value is required (or type 'backward' to go back).");
+            continue;
+         }
+         try {
+            int parsed = Integer.parseInt(val.trim());
+            if (min != null && parsed < min) {
+               System.out.println("  [Error] Value must be >= " + min + ".");
+               continue;
+            }
+            if (max != null && parsed > max) {
+               System.out.println("  [Error] Value must be <= " + max + ".");
+               continue;
+            }
+            return parsed;
+         } catch (NumberFormatException e) {
+            System.out.println("  [Error] Invalid integer format (or type 'backward' to go back).");
+         }
+      }
+   }
+
+   private static Double readDoubleBack(String prompt, boolean required, Double min, boolean strictMin) throws IOException, BackNavigationException {
+      while (true) {
+         System.out.print(prompt);
+         String val = in.readLine();
+         if (isBackCommand(val)) throw new BackNavigationException();
+         if (val == null || val.trim().isEmpty()) {
+            if (!required) return null;
+            System.out.println("  [Error] Numeric value is required (or type 'backward' to go back).");
+            continue;
+         }
+         try {
+            double parsed = Double.parseDouble(val.trim());
+            if (min != null) {
+               if (strictMin && parsed <= min) {
+                  System.out.println("  [Error] Value must be > " + min + ".");
+                  continue;
+               } else if (!strictMin && parsed < min) {
+                  System.out.println("  [Error] Value must be >= " + min + ".");
+                  continue;
+               }
+            }
+            return parsed;
+         } catch (NumberFormatException e) {
+            System.out.println("  [Error] Invalid decimal/numeric format (or type 'backward' to go back).");
+         }
+      }
+   }
+
+   private static Boolean readBooleanBack(String prompt, boolean required) throws IOException, BackNavigationException {
+      while (true) {
+         System.out.print(prompt);
+         String val = in.readLine();
+         if (isBackCommand(val)) throw new BackNavigationException();
+         if (val == null || val.trim().isEmpty()) {
+            if (!required) return null;
+            System.out.println("  [Error] Boolean value is required (true/false or yes/no, or type 'backward' to go back).");
+            continue;
+         }
+         String trimmed = val.trim().toLowerCase();
+         if (trimmed.equals("true") || trimmed.equals("t") || trimmed.equals("yes") || trimmed.equals("y") || trimmed.equals("1")) {
+            return true;
+         }
+         if (trimmed.equals("false") || trimmed.equals("f") || trimmed.equals("no") || trimmed.equals("n") || trimmed.equals("0")) {
+            return false;
+         }
+         System.out.println("  [Error] Invalid boolean. Enter true/false or yes/no (or type 'backward' to go back).");
+      }
+   }
+
+   private static Date readDateBack(String prompt, boolean required) throws IOException, BackNavigationException {
+      while (true) {
+         System.out.print(prompt);
+         String val = in.readLine();
+         if (isBackCommand(val)) throw new BackNavigationException();
+         if (val == null || val.trim().isEmpty()) {
+            if (!required) return null;
+            System.out.println("  [Error] Date is required (YYYY-MM-DD, or type 'backward' to go back).");
+            continue;
+         }
+         try {
+            return Date.valueOf(val.trim());
+         } catch (IllegalArgumentException e) {
+            System.out.println("  [Error] Invalid date format. Please use YYYY-MM-DD (or type 'backward' to go back).");
+         }
+      }
+   }
+
+   private static String readEnumBack(String prompt, boolean required, List<String> allowedValues) throws IOException, BackNavigationException {
+      while (true) {
+         System.out.print(prompt);
+         String val = in.readLine();
+         if (isBackCommand(val)) throw new BackNavigationException();
+         if (val == null || val.trim().isEmpty()) {
+            if (!required) return null;
+            System.out.println("  [Error] Selection is required. Allowed: " + allowedValues + " (or type 'backward' to go back).");
+            continue;
+         }
+         String trimmed = val.trim();
+         for (String allowed : allowedValues) {
+            if (allowed.equalsIgnoreCase(trimmed)) {
+               return allowed;
+            }
+         }
+         System.out.println("  [Error] Invalid option. Must be one of: " + allowedValues + " (or type 'backward' to go back).");
+      }
+   }
+
+   private static Integer[] readIntArrayBack(String prompt) throws IOException, BackNavigationException {
+      while (true) {
+         System.out.print(prompt);
+         String val = in.readLine();
+         if (isBackCommand(val)) throw new BackNavigationException();
+         if (val == null || val.trim().isEmpty()) {
+            return null;
+         }
+         String[] parts = val.split(",");
+         Integer[] result = new Integer[parts.length];
+         boolean valid = true;
+         for (int i = 0; i < parts.length; i++) {
+            try {
+               result[i] = Integer.parseInt(parts[i].trim());
+            } catch (NumberFormatException e) {
+               System.out.println("  [Error] Invalid integer in comma-separated list: '" + parts[i].trim() + "'");
+               valid = false;
+               break;
+            }
+         }
+         if (valid) return result;
+      }
+   }
+
+   private static String[] readStringArrayBack(String prompt) throws IOException, BackNavigationException {
+      System.out.print(prompt);
+      String val = in.readLine();
+      if (isBackCommand(val)) throw new BackNavigationException();
+      if (val == null || val.trim().isEmpty()) {
+         return null;
+      }
+      String[] parts = val.split(",");
+      List<String> cleaned = new ArrayList<>();
+      for (String p : parts) {
+         if (!p.trim().isEmpty()) {
+            cleaned.add(p.trim().toLowerCase());
+         }
+      }
+      return cleaned.isEmpty() ? null : cleaned.toArray(new String[0]);
+   }
+
+   private static Object readTypedScalarBack(String prompt, ColType type, boolean required) throws IOException, BackNavigationException {
+      switch (type) {
+         case INT:
+            return readIntBack(prompt, required, null, null);
+         case DOUBLE:
+            return readDoubleBack(prompt, required, null, false);
+         case DATE:
+            return readDateBack(prompt, required);
+         case BOOLEAN:
+            return readBooleanBack(prompt, required);
+         case STRING:
+         default:
+            return required ? readRequiredStringBack(prompt) : readOptionalStringBack(prompt);
+      }
+   }
+
+   // =========================================================================
    // QUERY 2: UPDATE EXISTING RECORDS IN ANY OF THE 26 TABLES (BEFORE & AFTER)
    // =========================================================================
 
-   private static Object readUpdateValue(String tableName, SearchColumn col) throws IOException {
+   private static Object readUpdateValue(String tableName, SearchColumn col) throws IOException, BackNavigationException {
       String colName = col.label;
 
       // Table- and column-specific domain validation to catch invalid updates early
       if (colName.equals("morning_afternoon")) {
-         return readEnum("New value for " + colName + " ('Morning' or 'Afternoon'): ",
-                         true, Arrays.asList("morning", "afternoon"));
+         return readEnumBack("New value for " + colName + " ('Morning' or 'Afternoon', or 'backward'): ",
+                             true, Arrays.asList("morning", "afternoon"));
       }
       if (colName.equals("regular_practice_squad")) {
-         return readEnum("New value for " + colName + " ('Regular' or 'Practice Squad'): ",
-                         true, Arrays.asList("regular", "practice squad"));
+         return readEnumBack("New value for " + colName + " ('Regular' or 'Practice Squad', or 'backward'): ",
+                             true, Arrays.asList("regular", "practice squad"));
       }
       if (colName.equals("defensive_offensive")) {
-         return readEnum("New value for " + colName + " ('Offensive', 'Defensive', 'Special Teams', 'Both', or Enter for NULL): ",
-                         false, Arrays.asList("offensive", "defensive", "special teams", "both"));
+         return readEnumBack("New value for " + colName + " ('Offensive', 'Defensive', 'Special Teams', 'Both', Enter for NULL, or 'backward'): ",
+                             false, Arrays.asList("offensive", "defensive", "special teams", "both"));
       }
       if (colName.equals("focus")) {
-         return readEnum("New value for " + colName + " ('Offensive', 'Defensive', 'Both'): ",
-                         true, Arrays.asList("offensive", "defensive", "both"));
+         return readEnumBack("New value for " + colName + " ('Offensive', 'Defensive', 'Both', or 'backward'): ",
+                             true, Arrays.asList("offensive", "defensive", "both"));
       }
       if (colName.equals("excused_unexcused")) {
-         return readEnum("New value for " + colName + " ('Excused', 'Unexcused', or Enter for NULL): ",
-                         false, Arrays.asList("excused", "unexcused"));
+         return readEnumBack("New value for " + colName + " ('Excused', 'Unexcused', Enter for NULL, or 'backward'): ",
+                             false, Arrays.asList("excused", "unexcused"));
       }
       if (colName.equals("jersey_number")) {
-         return readInt("New value for jersey_number (0-99, or Enter for NULL): ", false, 0, 99);
+         return readIntBack("New value for jersey_number (0-99, Enter for NULL, or 'backward'): ", false, 0, 99);
       }
       if (colName.equals("days")) {
-         return readInt("New value for days (1-7, or Enter for NULL): ", false, 1, 7);
+         return readIntBack("New value for days (1-7, Enter for NULL, or 'backward'): ", false, 1, 7);
       }
       if (colName.equals("age")) {
          int minAge = tableName.equals("Regular_Staff") ? 16 : 18;
-         return readInt("New value for age (>= " + minAge + ", or Enter for NULL): ", false, minAge, null);
+         return readIntBack("New value for age (>= " + minAge + ", Enter for NULL, or 'backward'): ", false, minAge, null);
       }
       if (colName.equals("height") || colName.equals("weight")) {
-         return readDouble("New value for " + colName + " (> 0, or Enter for NULL): ", false, 0.0, true);
+         return readDoubleBack("New value for " + colName + " (> 0, Enter for NULL, or 'backward'): ", false, 0.0, true);
       }
       if (colName.equals("salary")) {
-         return readDouble("New value for salary (>= 0, or Enter for NULL): ", false, 0.0, false);
+         return readDoubleBack("New value for salary (>= 0, Enter for NULL, or 'backward'): ", false, 0.0, false);
       }
       if (colName.equals("experience") || colName.equals("treatment_length")) {
-         return readInt("New value for " + colName + " (>= 0, or Enter for NULL): ", false, 0, null);
+         return readIntBack("New value for " + colName + " (>= 0, Enter for NULL, or 'backward'): ", false, 0, null);
       }
       if (colName.equals("positions")) {
-         return readRequiredString("New value for positions (required, e.g., 'QB' or 'WR, KR'): ").toLowerCase();
+         return readRequiredStringBack("New value for positions (required, e.g., 'QB' or 'WR, KR', or 'backward'): ").toLowerCase();
       }
       if (colName.equals("fname") || colName.equals("lname") || colName.equals("team")
           || colName.equals("position") || colName.equals("job_title")
           || colName.equals("home_team") || colName.equals("away_team")
           || colName.equals("health_status")) {
-         return readRequiredString("New value for " + colName + " (required, cannot be empty): ");
+         return readRequiredStringBack("New value for " + colName + " (required, or 'backward'): ");
       }
       if (colName.equals("mid") && (tableName.equals("Team_Players") || tableName.equals("Coaches"))) {
-         return readInt("New value for mid (required existing Manager ID): ", true, null, null);
+         return readIntBack("New value for mid (required existing Manager ID, or 'backward'): ", true, null, null);
       }
       if (col.isPk) {
-         return readTypedScalar("New primary key value for " + colName + " (required): ", col.type, true);
+         return readTypedScalarBack("New primary key value for " + colName + " (required, or 'backward'): ", col.type, true);
       }
 
       // Generic handling for remaining columns (press Enter to set NULL where allowed)
       switch (col.type) {
          case INT:
-            return readInt("New integer value for " + colName + " (or Enter for NULL): ", false, null, null);
+            return readIntBack("New integer value for " + colName + " (Enter for NULL, or 'backward'): ", false, null, null);
          case DOUBLE:
-            return readDouble("New numeric value for " + colName + " (or Enter for NULL): ", false, null, false);
+            return readDoubleBack("New numeric value for " + colName + " (Enter for NULL, or 'backward'): ", false, null, false);
          case DATE:
-            return readDate("New date for " + colName + " (YYYY-MM-DD, or Enter for NULL): ", false);
+            return readDateBack("New date for " + colName + " (YYYY-MM-DD, Enter for NULL, or 'backward'): ", false);
          case BOOLEAN:
-            return readBoolean("New boolean for " + colName + " (true/false, or Enter for NULL): ", false);
+            return readBooleanBack("New boolean for " + colName + " (true/false, Enter for NULL, or 'backward'): ", false);
          case INT_ARRAY:
-            return readIntArray("New comma-separated integers for " + colName + " (e.g., 42, 35, 51, or Enter for NULL): ");
+            return readIntArrayBack("New comma-separated integers for " + colName + " (Enter for NULL, or 'backward'): ");
          case STRING_ARRAY:
-            return readStringArray("New comma-separated items for " + colName + " (or Enter for NULL): ");
+            return readStringArrayBack("New comma-separated items for " + colName + " (Enter for NULL, or 'backward'): ");
          case STRING:
          default:
-            return readOptionalString("New text for " + colName + " (or Enter for NULL): ");
+            return readOptionalStringBack("New text for " + colName + " (Enter for NULL, or 'backward'): ");
       }
    }
 
    public static void Query2(EmbeddedSQL esql) {
-      printAllTablesMenu("UPDATE EXISTING RECORD (WITH BEFORE & AFTER VIEW)");
+      while (true) {
+         printAllTablesMenu("UPDATE EXISTING RECORD (WITH BEFORE & AFTER VIEW)");
 
-      int choice = readChoice();
-      if (choice == 0) return;
+         int choice = readChoice();
+         if (choice == 0) return;
 
-      SearchTableConfig config = getTableConfig(choice);
-      if (config == null) {
-         System.out.println("Invalid table selection.");
-         return;
-      }
-
-      Connection conn = esql.getConnection();
-      try {
-         System.out.println("\nSelected Table: " + config.tableName);
-
-         // Optional quick lookup so user can see existing primary keys
-         boolean showCurrent = readBoolean("Would you like to view current records in " + config.rawTableName + " first? (yes/no): ", true);
-         if (showCurrent) {
-            String listSql = config.baseSelectFrom +
-                             (config.defaultOrderBy != null ? " ORDER BY " + config.defaultOrderBy : "");
-            try (PreparedStatement listPs = conn.prepareStatement(listSql);
-                 ResultSet listRs = listPs.executeQuery()) {
-               printSmartResultSet(listRs);
-            }
+         SearchTableConfig config = getTableConfig(choice);
+         if (config == null) {
+            System.out.println("Invalid table selection.");
+            continue;
          }
 
-         // Step 1: Identify target record by Primary Key(s)
-         List<SearchColumn> pkCols = config.getPrimaryKeys();
-         System.out.println("\nStep 1: Enter the Primary Key value(s) of the record to update:");
-         List<QueryParam> pkParams = new ArrayList<>();
-         List<String> selectWhere = new ArrayList<>();
-         List<String> updateWhere = new ArrayList<>();
+         Connection conn = esql.getConnection();
+         try {
+            System.out.println("\nSelected Table: " + config.tableName);
+            System.out.println("(Type 'backward' at any prompt to go back to the previous step)");
 
-         for (SearchColumn pkCol : pkCols) {
-            Object pkVal = readTypedScalar("  " + pkCol.label + " (" + pkCol.type + ", required): ", pkCol.type, true);
-            pkParams.add(new QueryParam(pkCol.type, pkVal));
-            if (pkCol.type == ColType.STRING) {
-               selectWhere.add("LOWER(" + pkCol.sqlExpr + ") = LOWER(?)");
-               updateWhere.add("LOWER(" + pkCol.label + ") = LOWER(?)");
-            } else {
-               selectWhere.add(pkCol.sqlExpr + " = ?");
-               updateWhere.add(pkCol.label + " = ?");
+            // Optional quick lookup so user can see existing primary keys
+            boolean showCurrent;
+            try {
+               showCurrent = readBooleanBack("Would you like to view current records in " + config.rawTableName + " first? (yes/no/backward): ", true);
+            } catch (BackNavigationException b) {
+               System.out.println("Returning to table selection menu...");
+               continue;
             }
-         }
 
-         // Step 2: Fetch and display BEFORE state
-         String fetchSql = config.baseSelectFrom + " WHERE " + String.join(" AND ", selectWhere);
-         System.out.println("\n--- BEFORE UPDATE ---");
-         int foundRows;
-         try (PreparedStatement beforePs = conn.prepareStatement(fetchSql)) {
-            bindQueryParams(conn, beforePs, pkParams);
-            try (ResultSet beforeRs = beforePs.executeQuery()) {
-               foundRows = printSmartResultSet(beforeRs);
+            if (showCurrent) {
+               String listSql = config.baseSelectFrom +
+                                (config.defaultOrderBy != null ? " ORDER BY " + config.defaultOrderBy : "");
+               try (PreparedStatement listPs = conn.prepareStatement(listSql);
+                    ResultSet listRs = listPs.executeQuery()) {
+                  printSmartResultSet(listRs);
+               }
             }
-         }
 
-         if (foundRows == 0) {
-            System.out.println("[Notice] No matching record found with the given primary key(s). Update aborted.");
-            return;
-         }
+            // Step 1: Identify target record by Primary Key(s)
+            List<SearchColumn> pkCols = config.getPrimaryKeys();
+            List<QueryParam> pkParams = new ArrayList<>();
+            List<String> selectWhere = new ArrayList<>();
+            List<String> updateWhere = new ArrayList<>();
 
-         // Step 3: Choose columns to modify and validate new values
-         System.out.println("\nStep 2: Choose attribute(s) to modify:");
-         List<String> setClauses = new ArrayList<>();
-         List<QueryParam> setParams = new ArrayList<>();
-         List<QueryParam> updatedPkParams = new ArrayList<>(pkParams);
+            boolean backToTableMenu = false;
+            while (true) {
+               pkParams.clear();
+               selectWhere.clear();
+               updateWhere.clear();
 
-         boolean moreCols = true;
-         while (moreCols) {
-            System.out.println("\nEditable attributes in " + config.rawTableName + ":");
-            for (int i = 0; i < config.columns.size(); i++) {
-               SearchColumn sc = config.columns.get(i);
-               String tag = sc.isPk ? " [PRIMARY KEY]" : "";
-               System.out.println("  " + (i + 1) + ". " + sc.label + " (" + sc.type + ")" + tag);
-            }
-            int colIdx = readInt("Select attribute number to update: ", true, 1, config.columns.size()) - 1;
-            SearchColumn targetCol = config.columns.get(colIdx);
+               System.out.println("\nStep 1: Enter the Primary Key value(s) of the record to update (or type 'backward' to go back):");
+               try {
+                  for (SearchColumn pkCol : pkCols) {
+                     Object pkVal = readTypedScalarBack("  " + pkCol.label + " (" + pkCol.type + ", required): ", pkCol.type, true);
+                     pkParams.add(new QueryParam(pkCol.type, pkVal));
+                     if (pkCol.type == ColType.STRING) {
+                        selectWhere.add("LOWER(" + pkCol.sqlExpr + ") = LOWER(?)");
+                        updateWhere.add("LOWER(" + pkCol.label + ") = LOWER(?)");
+                     } else {
+                        selectWhere.add(pkCol.sqlExpr + " = ?");
+                        updateWhere.add(pkCol.label + " = ?");
+                     }
+                  }
+               } catch (BackNavigationException b) {
+                  System.out.println("Backing out of update... returning to table selection menu.");
+                  backToTableMenu = true;
+                  break;
+               }
 
-            Object newVal = readUpdateValue(config.rawTableName, targetCol);
-            setClauses.add(targetCol.label + " = ?");
-            setParams.add(new QueryParam(targetCol.type, newVal));
-
-            // If user updates a primary key column, track its new value so we can fetch the AFTER row
-            if (targetCol.isPk) {
-               for (int k = 0; k < pkCols.size(); k++) {
-                  if (pkCols.get(k).label.equals(targetCol.label)) {
-                     updatedPkParams.set(k, new QueryParam(targetCol.type, newVal));
+               // Step 2: Fetch and display BEFORE state
+               String fetchSql = config.baseSelectFrom + " WHERE " + String.join(" AND ", selectWhere);
+               System.out.println("\n--- BEFORE UPDATE ---");
+               int foundRows;
+               try (PreparedStatement beforePs = conn.prepareStatement(fetchSql)) {
+                  bindQueryParams(conn, beforePs, pkParams);
+                  try (ResultSet beforeRs = beforePs.executeQuery()) {
+                     foundRows = printSmartResultSet(beforeRs);
                   }
                }
-            }
 
-            moreCols = readBoolean("Modify another attribute on this record? (yes/no): ", true);
-         }
+               if (foundRows == 0) {
+                  System.out.println("[Notice] No matching record found with the given primary key(s). Please try again or type 'backward'.");
+                  continue;
+               }
 
-         // Step 4: Execute UPDATE inside a transaction to preserve database integrity
-         String updateSql = "UPDATE " + config.rawTableName +
-                            " SET " + String.join(", ", setClauses) +
-                            " WHERE " + String.join(" AND ", updateWhere);
+               // Step 3: Choose columns to modify and validate new values
+               try {
+                  System.out.println("\nStep 2: Choose attribute(s) to modify (or type 'backward' to re-enter Primary Key):");
+                  List<String> setClauses = new ArrayList<>();
+                  List<QueryParam> setParams = new ArrayList<>();
+                  List<QueryParam> updatedPkParams = new ArrayList<>(pkParams);
 
-         boolean prevAutoCommit = conn.getAutoCommit();
-         conn.setAutoCommit(false);
-         try (PreparedStatement updatePs = conn.prepareStatement(updateSql)) {
-            List<QueryParam> allParams = new ArrayList<>(setParams);
-            allParams.addAll(pkParams);
-            bindQueryParams(conn, updatePs, allParams);
+                  boolean moreCols = true;
+                  while (moreCols) {
+                     System.out.println("\nEditable attributes in " + config.rawTableName + ":");
+                     for (int i = 0; i < config.columns.size(); i++) {
+                        SearchColumn sc = config.columns.get(i);
+                        String tag = sc.isPk ? " [PRIMARY KEY]" : "";
+                        System.out.println("  " + (i + 1) + ". " + sc.label + " (" + sc.type + ")" + tag);
+                     }
+                     int colIdx = readIntBack("Select attribute number to update (or 'backward'): ", true, 1, config.columns.size()) - 1;
+                     SearchColumn targetCol = config.columns.get(colIdx);
 
-            int affected = updatePs.executeUpdate();
-            conn.commit();
-            System.out.println("\nSuccess: " + affected + " record(s) updated in " + config.rawTableName + ".");
-         } catch (SQLException sqlEx) {
-            conn.rollback();
-            System.err.println("\n[Database Integrity Error] Update rejected and rolled back (SQLState: " + sqlEx.getSQLState() + "):");
-            System.err.println("  " + sqlEx.getMessage());
-            System.out.println("\n--- RECORD UNCHANGED (ROLLBACK VERIFIED) ---");
-            try (PreparedStatement checkPs = conn.prepareStatement(fetchSql)) {
-               bindQueryParams(conn, checkPs, pkParams);
-               try (ResultSet checkRs = checkPs.executeQuery()) {
-                  printSmartResultSet(checkRs);
+                     Object newVal = readUpdateValue(config.rawTableName, targetCol);
+                     setClauses.add(targetCol.label + " = ?");
+                     setParams.add(new QueryParam(targetCol.type, newVal));
+
+                     // If user updates a primary key column, track its new value so we can fetch the AFTER row
+                     if (targetCol.isPk) {
+                        for (int k = 0; k < pkCols.size(); k++) {
+                           if (pkCols.get(k).label.equals(targetCol.label)) {
+                              updatedPkParams.set(k, new QueryParam(targetCol.type, newVal));
+                           }
+                        }
+                     }
+
+                     moreCols = readBooleanBack("Modify another attribute on this record? (yes/no/backward): ", true);
+                  }
+
+                  // Step 4: Execute UPDATE inside a transaction to preserve database integrity
+                  String updateSql = "UPDATE " + config.rawTableName +
+                                     " SET " + String.join(", ", setClauses) +
+                                     " WHERE " + String.join(" AND ", updateWhere);
+
+                  boolean prevAutoCommit = conn.getAutoCommit();
+                  conn.setAutoCommit(false);
+                  try (PreparedStatement updatePs = conn.prepareStatement(updateSql)) {
+                     List<QueryParam> allParams = new ArrayList<>(setParams);
+                     allParams.addAll(pkParams);
+                     bindQueryParams(conn, updatePs, allParams);
+
+                     int affected = updatePs.executeUpdate();
+                     conn.commit();
+                     System.out.println("\nSuccess: " + affected + " record(s) updated in " + config.rawTableName + ".");
+                  } catch (SQLException sqlEx) {
+                     conn.rollback();
+                     System.err.println("\n[Database Integrity Error] Update rejected and rolled back (SQLState: " + sqlEx.getSQLState() + "):");
+                     System.err.println("  " + sqlEx.getMessage());
+                     System.out.println("\n--- RECORD UNCHANGED (ROLLBACK VERIFIED) ---");
+                     try (PreparedStatement checkPs = conn.prepareStatement(fetchSql)) {
+                        bindQueryParams(conn, checkPs, pkParams);
+                        try (ResultSet checkRs = checkPs.executeQuery()) {
+                           printSmartResultSet(checkRs);
+                        }
+                     }
+                     return;
+                  } finally {
+                     conn.setAutoCommit(prevAutoCommit);
+                  }
+
+                  // Step 5: Fetch and display AFTER state
+                  System.out.println("\n--- AFTER UPDATE ---");
+                  try (PreparedStatement afterPs = conn.prepareStatement(fetchSql)) {
+                     bindQueryParams(conn, afterPs, updatedPkParams);
+                     try (ResultSet afterRs = afterPs.executeQuery()) {
+                        printSmartResultSet(afterRs);
+                     }
+                  }
+                  return;
+
+               } catch (BackNavigationException b) {
+                  System.out.println("Backing out of attribute edits... returning to Step 1 (Primary Key entry).");
                }
             }
+
+            if (backToTableMenu) {
+               continue;
+            }
+
+         } catch (SQLException e) {
+            System.err.println("\n[Database Error] Operation failed (SQLState: " + e.getSQLState() + "):");
+            System.err.println("  " + e.getMessage());
             return;
-         } finally {
-            conn.setAutoCommit(prevAutoCommit);
+         } catch (IOException e) {
+            System.err.println("\n[Input Error] Failed reading input: " + e.getMessage());
+            return;
          }
-
-         // Step 5: Fetch and display AFTER state
-         System.out.println("\n--- AFTER UPDATE ---");
-         try (PreparedStatement afterPs = conn.prepareStatement(fetchSql)) {
-            bindQueryParams(conn, afterPs, updatedPkParams);
-            try (ResultSet afterRs = afterPs.executeQuery()) {
-               printSmartResultSet(afterRs);
-            }
-         }
-
-      } catch (SQLException e) {
-         System.err.println("\n[Database Error] Operation failed (SQLState: " + e.getSQLState() + "):");
-         System.err.println("  " + e.getMessage());
-      } catch (IOException e) {
-         System.err.println("\n[Input Error] Failed reading input: " + e.getMessage());
       }
    }
 
    // =========================================================================
-   // REMAINING QUERIES
+   // QUERY 3: DELETE RECORDS FROM ANY OF THE 26 TABLES (WITH CASCADE & RULES)
    // =========================================================================
-
-   // =========================================================================
-   // QUERY 3: DELETE RECORDS FROM ANY OF THE 26 TABLES (WITH RULE CHECKS)
-   // =========================================================================
-
-   private static List<String> checkDeleteBusinessRules(Connection conn, String tableName, List<QueryParam> pkParams) throws SQLException {
-      List<String> blockers = new ArrayList<>();
-
-      if (tableName.equals("Managers")) {
-         int mid = (Integer) pkParams.get(0).value;
-         int players = countRefs(conn, "SELECT COUNT(*) FROM Team_Players WHERE mid = ?", mid);
-         int coaches = countRefs(conn, "SELECT COUNT(*) FROM Coaches WHERE mid = ?", mid);
-         int staff = countRefs(conn, "SELECT COUNT(*) FROM Manages_reg_staff WHERE mid = ?", mid);
-         if (players > 0) {
-            blockers.add("Manager (mid=" + mid + ") still oversees " + players + " player(s) in Team_Players. Reassign those players to another manager first.");
-         }
-         if (coaches > 0) {
-            blockers.add("Manager (mid=" + mid + ") still oversees " + coaches + " coach(es) in Coaches. Reassign those coaches to another manager first.");
-         }
-         if (staff > 0) {
-            blockers.add("Manager (mid=" + mid + ") is still assigned to " + staff + " regular staff schedule(s) in Manages_reg_staff. Remove or reassign those assignments first.");
-         }
-      } else if (tableName.equals("Team_Players")) {
-         int pid = (Integer) pkParams.get(0).value;
-         int mentees = countRefs(conn, "SELECT COUNT(*) FROM Team_Players WHERE mentor_pid = ?", pid);
-         int whoCoaches = countRefs(conn, "SELECT COUNT(*) FROM Who_Coaches WHERE pid = ?", pid);
-         int plays = countRefs(conn, "SELECT COUNT(*) FROM Team_Plays WHERE pid = ?", pid);
-         int analyses = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Team WHERE pid = ?", pid);
-         int practices = countRefs(conn, "SELECT COUNT(*) FROM Practices_In WHERE pid = ?", pid);
-         int inspects = countRefs(conn, "SELECT COUNT(*) FROM Inspects WHERE pid = ?", pid);
-         int worksOn = countRefs(conn, "SELECT COUNT(*) FROM Works_on WHERE pid = ?", pid);
-         if (mentees > 0) {
-            blockers.add("Player (pid=" + pid + ") is currently a mentor to " + mentees + " other player(s) in Team_Players (mentor_pid). Clear or reassign their mentor_pid first.");
-         }
-         if (whoCoaches > 0) {
-            blockers.add("Player (pid=" + pid + ") has " + whoCoaches + " coaching log(s) in Who_Coaches.");
-         }
-         if (plays > 0) {
-            blockers.add("Player (pid=" + pid + ") has " + plays + " game play log(s) in Team_Plays.");
-         }
-         if (analyses > 0) {
-            blockers.add("Player (pid=" + pid + ") has " + analyses + " scouting/statistical report(s) in Analyze_Team.");
-         }
-         if (practices > 0) {
-            blockers.add("Player (pid=" + pid + ") has " + practices + " attendance record(s) in Practices_In.");
-         }
-         if (inspects > 0) {
-            blockers.add("Player (pid=" + pid + ") has " + inspects + " medical inspection record(s) in Inspects.");
-         }
-         if (worksOn > 0) {
-            blockers.add("Player (pid=" + pid + ") has " + worksOn + " athletic trainer session(s) in Works_on.");
-         }
-      } else if (tableName.equals("Opposing_Players")) {
-         int opid = (Integer) pkParams.get(0).value;
-         int plays = countRefs(conn, "SELECT COUNT(*) FROM Opposing_Plays WHERE opid = ?", opid);
-         int analyses = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Opposing WHERE opid = ?", opid);
-         if (plays > 0) {
-            blockers.add("Opposing player (opid=" + opid + ") has " + plays + " game play log(s) in Opposing_Plays.");
-         }
-         if (analyses > 0) {
-            blockers.add("Opposing player (opid=" + opid + ") has " + analyses + " scouting report(s) in Analyze_Opposing.");
-         }
-      } else if (tableName.equals("Coaches")) {
-         int cid = (Integer) pkParams.get(0).value;
-         int subordinates = countRefs(conn, "SELECT COUNT(*) FROM Coaches WHERE reports_to_cid = ?", cid);
-         int whoCoaches = countRefs(conn, "SELECT COUNT(*) FROM Who_Coaches WHERE cid = ?", cid);
-         int inGames = countRefs(conn, "SELECT COUNT(*) FROM Coach_In_Game WHERE cid = ?", cid);
-         if (subordinates > 0) {
-            blockers.add("Coach (cid=" + cid + ") supervises " + subordinates + " subordinate coach(es) in Coaches (reports_to_cid). Reassign their supervisor first.");
-         }
-         if (whoCoaches > 0) {
-            blockers.add("Coach (cid=" + cid + ") has " + whoCoaches + " player coaching record(s) in Who_Coaches.");
-         }
-         if (inGames > 0) {
-            blockers.add("Coach (cid=" + cid + ") is logged in " + inGames + " game participation record(s) in Coach_In_Game.");
-         }
-      } else if (tableName.equals("Statistical_Team")) {
-         int stid = (Integer) pkParams.get(0).value;
-         int teamReports = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Team WHERE stid = ?", stid);
-         int oppReports = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Opposing WHERE stid = ?", stid);
-         if (teamReports > 0) {
-            blockers.add("Analyst (stid=" + stid + ") authored " + teamReports + " report(s) in Analyze_Team.");
-         }
-         if (oppReports > 0) {
-            blockers.add("Analyst (stid=" + stid + ") authored " + oppReports + " report(s) in Analyze_Opposing.");
-         }
-      } else if (tableName.equals("Team_Doctors")) {
-         int did = (Integer) pkParams.get(0).value;
-         int inspects = countRefs(conn, "SELECT COUNT(*) FROM Inspects WHERE did = ?", did);
-         if (inspects > 0) {
-            blockers.add("Doctor (did=" + did + ") has " + inspects + " medical examination record(s) in Inspects.");
-         }
-      } else if (tableName.equals("Trainers")) {
-         int tid = (Integer) pkParams.get(0).value;
-         int worksOn = countRefs(conn, "SELECT COUNT(*) FROM Works_on WHERE tid = ?", tid);
-         if (worksOn > 0) {
-            blockers.add("Trainer (tid=" + tid + ") has " + worksOn + " player treatment/rehab record(s) in Works_on.");
-         }
-      } else if (tableName.equals("Regular_Staff")) {
-         int jib = (Integer) pkParams.get(0).value;
-         int assignments = countRefs(conn, "SELECT COUNT(*) FROM Manages_reg_staff WHERE jib = ?", jib);
-         if (assignments > 0) {
-            blockers.add("Regular staff member (jib=" + jib + ") still has " + assignments + " active managerial schedule assignment(s) in Manages_reg_staff. Delete the Manages_reg_staff assignment(s) first.");
-         }
-      } else if (tableName.equals("Games")) {
-         int gid = (Integer) pkParams.get(0).value;
-         int coachGames = countRefs(conn, "SELECT COUNT(*) FROM Coach_In_Game WHERE gid = ?", gid);
-         int teamPlays = countRefs(conn, "SELECT COUNT(*) FROM Team_Plays WHERE gid = ?", gid);
-         int oppPlays = countRefs(conn, "SELECT COUNT(*) FROM Opposing_Plays WHERE gid = ?", gid);
-         if (coachGames > 0) {
-            blockers.add("Game (gid=" + gid + ") has " + coachGames + " coach participation record(s) in Coach_In_Game.");
-         }
-         if (teamPlays > 0) {
-            blockers.add("Game (gid=" + gid + ") has " + teamPlays + " home player play log(s) in Team_Plays.");
-         }
-         if (oppPlays > 0) {
-            blockers.add("Game (gid=" + gid + ") has " + oppPlays + " opposing player play log(s) in Opposing_Plays.");
-         }
-      } else if (tableName.equals("Practices")) {
-         Date practiceDate = (Date) pkParams.get(0).value;
-         String session = (String) pkParams.get(1).value;
-         try (PreparedStatement ps = conn.prepareStatement(
-               "SELECT COUNT(*) FROM Practices_In WHERE date_of_practice = ? AND LOWER(morning_afternoon) = LOWER(?)")) {
-            ps.setDate(1, practiceDate);
-            ps.setString(2, session);
-            try (ResultSet rs = ps.executeQuery()) {
-               if (rs.next() && rs.getInt(1) > 0) {
-                  blockers.add("Practice session (" + practiceDate + ", " + session + ") has " + rs.getInt(1) + " player attendance log(s) in Practices_In.");
-               }
-            }
-         }
-      } else if (tableName.equals("Manages_reg_staff")) {
-         // Business Rule (trg_require_regular_staff_manager): Every Regular_Staff member must have at least one manager
-         int mid = (Integer) pkParams.get(0).value;
-         int jib = (Integer) pkParams.get(1).value;
-         int totalManagers = countRefs(conn, "SELECT COUNT(*) FROM Manages_reg_staff WHERE jib = ?", jib);
-         if (totalManagers <= 1) {
-            blockers.add("Business Rule Violation: Regular staff member (jib=" + jib + ") must always have at least one supervising manager in Manages_reg_staff (mid=" + mid + " is their sole manager). Assign another manager first or delete the Regular_Staff record instead.");
-         }
-      }
-
-      return blockers;
-   }
 
    private static int countRefs(Connection conn, String countSql, int idVal) throws SQLException {
       try (PreparedStatement ps = conn.prepareStatement(countSql)) {
@@ -2321,122 +2422,379 @@ public class EmbeddedSQL {
       }
    }
 
-   private static void printDeleteWarnings(String tableName) {
+   private static int executeDeleteByIntId(Connection conn, String sql, int idVal) throws SQLException {
+      try (PreparedStatement ps = conn.prepareStatement(sql)) {
+         ps.setInt(1, idVal);
+         return ps.executeUpdate();
+      }
+   }
+
+   // Managers are blocked from deletion when workers/staff still depend on them
+   private static List<String> checkManagerDeleteBlockers(Connection conn, int mid) throws SQLException {
+      List<String> blockers = new ArrayList<>();
+      int players = countRefs(conn, "SELECT COUNT(*) FROM Team_Players WHERE mid = ?", mid);
+      int coaches = countRefs(conn, "SELECT COUNT(*) FROM Coaches WHERE mid = ?", mid);
+      int staff = countRefs(conn, "SELECT COUNT(*) FROM Manages_reg_staff WHERE mid = ?", mid);
+
+      if (players > 0) {
+         blockers.add("Manager (mid=" + mid + ") still oversees " + players + " player(s) in Team_Players. Workers must be assigned to a new manager before this manager can be deleted.");
+      }
+      if (coaches > 0) {
+         blockers.add("Manager (mid=" + mid + ") still oversees " + coaches + " coach(es) in Coaches. Workers must be assigned to a new manager before this manager can be deleted.");
+      }
+      if (staff > 0) {
+         blockers.add("Manager (mid=" + mid + ") still manages " + staff + " regular staff assignment(s) in Manages_reg_staff. Workers must be assigned to a new manager before this manager can be deleted.");
+      }
+      return blockers;
+   }
+
+   // Coaches are blocked from deletion when subordinate coaches still report to them (reports_to_cid)
+   private static List<String> checkCoachDeleteBlockers(Connection conn, int cid) throws SQLException {
+      List<String> blockers = new ArrayList<>();
+      int subordinates = countRefs(conn, "SELECT COUNT(*) FROM Coaches WHERE reports_to_cid = ?", cid);
+      if (subordinates > 0) {
+         blockers.add("Coach (cid=" + cid + ") still supervises " + subordinates +
+                      " subordinate coach(es) in Coaches (reports_to_cid). Subordinate coaches must be assigned to a new supervisor coach before this coach can be deleted.");
+      }
+      return blockers;
+   }
+
+   // Preview all related records across all tables that will be cascaded/updated when deleting a record
+   private static List<String> getCascadeImpactSummary(Connection conn, String tableName, List<QueryParam> pkParams) throws SQLException {
+      List<String> impacts = new ArrayList<>();
+
       if (tableName.equals("Team_Players")) {
-         System.out.println("  [Note] Deleting a Team_Players record will also automatically cascade-delete any 1:1 cumulative stats in Offensive_Stats_Home, Defensive_Stats_Home, and Special_Teams_Stats_Home.");
+         int pid = (Integer) pkParams.get(0).value;
+         int mentees = countRefs(conn, "SELECT COUNT(*) FROM Team_Players WHERE mentor_pid = ?", pid);
+         int offStats = countRefs(conn, "SELECT COUNT(*) FROM Offensive_Stats_Home WHERE pid = ?", pid);
+         int defStats = countRefs(conn, "SELECT COUNT(*) FROM Defensive_Stats_Home WHERE pid = ?", pid);
+         int stStats = countRefs(conn, "SELECT COUNT(*) FROM Special_Teams_Stats_Home WHERE pid = ?", pid);
+         int whoCoaches = countRefs(conn, "SELECT COUNT(*) FROM Who_Coaches WHERE pid = ?", pid);
+         int plays = countRefs(conn, "SELECT COUNT(*) FROM Team_Plays WHERE pid = ?", pid);
+         int analyses = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Team WHERE pid = ?", pid);
+         int practices = countRefs(conn, "SELECT COUNT(*) FROM Practices_In WHERE pid = ?", pid);
+         int inspects = countRefs(conn, "SELECT COUNT(*) FROM Inspects WHERE pid = ?", pid);
+         int worksOn = countRefs(conn, "SELECT COUNT(*) FROM Works_on WHERE pid = ?", pid);
+
+         if (mentees > 0) impacts.add("Clear mentor_pid (set to NULL) on " + mentees + " mentee player(s) in Team_Players");
+         if (offStats > 0) impacts.add("Delete " + offStats + " record(s) from Offensive_Stats_Home");
+         if (defStats > 0) impacts.add("Delete " + defStats + " record(s) from Defensive_Stats_Home");
+         if (stStats > 0) impacts.add("Delete " + stStats + " record(s) from Special_Teams_Stats_Home");
+         if (whoCoaches > 0) impacts.add("Delete " + whoCoaches + " coaching log(s) from Who_Coaches");
+         if (plays > 0) impacts.add("Delete " + plays + " game play log(s) from Team_Plays");
+         if (analyses > 0) impacts.add("Delete " + analyses + " statistical report(s) from Analyze_Team");
+         if (practices > 0) impacts.add("Delete " + practices + " practice attendance record(s) from Practices_In");
+         if (inspects > 0) impacts.add("Delete " + inspects + " medical inspection record(s) from Inspects");
+         if (worksOn > 0) impacts.add("Delete " + worksOn + " trainer treatment session(s) from Works_on");
+
       } else if (tableName.equals("Opposing_Players")) {
-         System.out.println("  [Note] Deleting an Opposing_Players record will also automatically cascade-delete any 1:1 cumulative stats in Offensive_Stats_Away, Defensive_Stats_Away, and Special_Teams_Stats_Away.");
+         int opid = (Integer) pkParams.get(0).value;
+         int offStats = countRefs(conn, "SELECT COUNT(*) FROM Offensive_Stats_Away WHERE opid = ?", opid);
+         int defStats = countRefs(conn, "SELECT COUNT(*) FROM Defensive_Stats_Away WHERE opid = ?", opid);
+         int stStats = countRefs(conn, "SELECT COUNT(*) FROM Special_Teams_Stats_Away WHERE opid = ?", opid);
+         int plays = countRefs(conn, "SELECT COUNT(*) FROM Opposing_Plays WHERE opid = ?", opid);
+         int analyses = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Opposing WHERE opid = ?", opid);
+
+         if (offStats > 0) impacts.add("Delete " + offStats + " record(s) from Offensive_Stats_Away");
+         if (defStats > 0) impacts.add("Delete " + defStats + " record(s) from Defensive_Stats_Away");
+         if (stStats > 0) impacts.add("Delete " + stStats + " record(s) from Special_Teams_Stats_Away");
+         if (plays > 0) impacts.add("Delete " + plays + " game play log(s) from Opposing_Plays");
+         if (analyses > 0) impacts.add("Delete " + analyses + " scouting report(s) from Analyze_Opposing");
+
+      } else if (tableName.equals("Coaches")) {
+         int cid = (Integer) pkParams.get(0).value;
+         int whoCoaches = countRefs(conn, "SELECT COUNT(*) FROM Who_Coaches WHERE cid = ?", cid);
+         int inGames = countRefs(conn, "SELECT COUNT(*) FROM Coach_In_Game WHERE cid = ?", cid);
+
+         if (whoCoaches > 0) impacts.add("Delete " + whoCoaches + " player coaching log(s) from Who_Coaches");
+         if (inGames > 0) impacts.add("Delete " + inGames + " game participation record(s) from Coach_In_Game");
+
+      } else if (tableName.equals("Statistical_Team")) {
+         int stid = (Integer) pkParams.get(0).value;
+         int teamReports = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Team WHERE stid = ?", stid);
+         int oppReports = countRefs(conn, "SELECT COUNT(*) FROM Analyze_Opposing WHERE stid = ?", stid);
+
+         if (teamReports > 0) impacts.add("Delete " + teamReports + " report(s) from Analyze_Team");
+         if (oppReports > 0) impacts.add("Delete " + oppReports + " report(s) from Analyze_Opposing");
+
+      } else if (tableName.equals("Team_Doctors")) {
+         int did = (Integer) pkParams.get(0).value;
+         int inspects = countRefs(conn, "SELECT COUNT(*) FROM Inspects WHERE did = ?", did);
+         if (inspects > 0) impacts.add("Delete " + inspects + " medical examination record(s) from Inspects");
+
+      } else if (tableName.equals("Trainers")) {
+         int tid = (Integer) pkParams.get(0).value;
+         int worksOn = countRefs(conn, "SELECT COUNT(*) FROM Works_on WHERE tid = ?", tid);
+         if (worksOn > 0) impacts.add("Delete " + worksOn + " trainer session record(s) from Works_on");
+
+      } else if (tableName.equals("Regular_Staff")) {
+         int jib = (Integer) pkParams.get(0).value;
+         int assignments = countRefs(conn, "SELECT COUNT(*) FROM Manages_reg_staff WHERE jib = ?", jib);
+         if (assignments > 0) impacts.add("Delete " + assignments + " managerial schedule assignment(s) from Manages_reg_staff");
+
+      } else if (tableName.equals("Games")) {
+         int gid = (Integer) pkParams.get(0).value;
+         int coachGames = countRefs(conn, "SELECT COUNT(*) FROM Coach_In_Game WHERE gid = ?", gid);
+         int teamPlays = countRefs(conn, "SELECT COUNT(*) FROM Team_Plays WHERE gid = ?", gid);
+         int oppPlays = countRefs(conn, "SELECT COUNT(*) FROM Opposing_Plays WHERE gid = ?", gid);
+
+         if (coachGames > 0) impacts.add("Delete " + coachGames + " coach participation record(s) from Coach_In_Game");
+         if (teamPlays > 0) impacts.add("Delete " + teamPlays + " home player play log(s) from Team_Plays");
+         if (oppPlays > 0) impacts.add("Delete " + oppPlays + " opposing player play log(s) from Opposing_Plays");
+
+      } else if (tableName.equals("Practices")) {
+         Date practiceDate = (Date) pkParams.get(0).value;
+         String session = (String) pkParams.get(1).value;
+         try (PreparedStatement ps = conn.prepareStatement(
+               "SELECT COUNT(*) FROM Practices_In WHERE date_of_practice = ? AND LOWER(morning_afternoon) = LOWER(?)")) {
+            ps.setDate(1, practiceDate);
+            ps.setString(2, session);
+            try (ResultSet rs = ps.executeQuery()) {
+               if (rs.next() && rs.getInt(1) > 0) {
+                  impacts.add("Delete " + rs.getInt(1) + " player attendance record(s) from Practices_In");
+               }
+            }
+         }
+      }
+
+      return impacts;
+   }
+
+   // Perform cascading cleanup across all related tables before deleting the target row
+   private static void performCascadingCleanup(Connection conn, String tableName, List<QueryParam> pkParams) throws SQLException {
+      if (tableName.equals("Team_Players")) {
+         int pid = (Integer) pkParams.get(0).value;
+         executeDeleteByIntId(conn, "UPDATE Team_Players SET mentor_pid = NULL WHERE mentor_pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Offensive_Stats_Home WHERE pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Defensive_Stats_Home WHERE pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Special_Teams_Stats_Home WHERE pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Who_Coaches WHERE pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Team_Plays WHERE pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Analyze_Team WHERE pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Practices_In WHERE pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Inspects WHERE pid = ?", pid);
+         executeDeleteByIntId(conn, "DELETE FROM Works_on WHERE pid = ?", pid);
+
+      } else if (tableName.equals("Opposing_Players")) {
+         int opid = (Integer) pkParams.get(0).value;
+         executeDeleteByIntId(conn, "DELETE FROM Offensive_Stats_Away WHERE opid = ?", opid);
+         executeDeleteByIntId(conn, "DELETE FROM Defensive_Stats_Away WHERE opid = ?", opid);
+         executeDeleteByIntId(conn, "DELETE FROM Special_Teams_Stats_Away WHERE opid = ?", opid);
+         executeDeleteByIntId(conn, "DELETE FROM Opposing_Plays WHERE opid = ?", opid);
+         executeDeleteByIntId(conn, "DELETE FROM Analyze_Opposing WHERE opid = ?", opid);
+
+      } else if (tableName.equals("Coaches")) {
+         int cid = (Integer) pkParams.get(0).value;
+         executeDeleteByIntId(conn, "DELETE FROM Who_Coaches WHERE cid = ?", cid);
+         executeDeleteByIntId(conn, "DELETE FROM Coach_In_Game WHERE cid = ?", cid);
+
+      } else if (tableName.equals("Statistical_Team")) {
+         int stid = (Integer) pkParams.get(0).value;
+         executeDeleteByIntId(conn, "DELETE FROM Analyze_Team WHERE stid = ?", stid);
+         executeDeleteByIntId(conn, "DELETE FROM Analyze_Opposing WHERE stid = ?", stid);
+
+      } else if (tableName.equals("Team_Doctors")) {
+         int did = (Integer) pkParams.get(0).value;
+         executeDeleteByIntId(conn, "DELETE FROM Inspects WHERE did = ?", did);
+
+      } else if (tableName.equals("Trainers")) {
+         int tid = (Integer) pkParams.get(0).value;
+         executeDeleteByIntId(conn, "DELETE FROM Works_on WHERE tid = ?", tid);
+
+      } else if (tableName.equals("Regular_Staff")) {
+         int jib = (Integer) pkParams.get(0).value;
+         executeDeleteByIntId(conn, "DELETE FROM Manages_reg_staff WHERE jib = ?", jib);
+
+      } else if (tableName.equals("Games")) {
+         int gid = (Integer) pkParams.get(0).value;
+         executeDeleteByIntId(conn, "DELETE FROM Coach_In_Game WHERE gid = ?", gid);
+         executeDeleteByIntId(conn, "DELETE FROM Team_Plays WHERE gid = ?", gid);
+         executeDeleteByIntId(conn, "DELETE FROM Opposing_Plays WHERE gid = ?", gid);
+
+      } else if (tableName.equals("Practices")) {
+         Date practiceDate = (Date) pkParams.get(0).value;
+         String session = (String) pkParams.get(1).value;
+         try (PreparedStatement ps = conn.prepareStatement(
+               "DELETE FROM Practices_In WHERE date_of_practice = ? AND LOWER(morning_afternoon) = LOWER(?)")) {
+            ps.setDate(1, practiceDate);
+            ps.setString(2, session);
+            ps.executeUpdate();
+         }
       }
    }
 
    public static void Query3(EmbeddedSQL esql) {
-      printAllTablesMenu("DELETE RECORD FROM TABLE");
+      while (true) {
+         printAllTablesMenu("DELETE RECORD FROM TABLE");
 
-      int choice = readChoice();
-      if (choice == 0) return;
+         int choice = readChoice();
+         if (choice == 0) return;
 
-      SearchTableConfig config = getTableConfig(choice);
-      if (config == null) {
-         System.out.println("Invalid table selection.");
-         return;
-      }
-
-      Connection conn = esql.getConnection();
-      try {
-         System.out.println("\nSelected Table: " + config.tableName);
-
-         // Optional quick lookup so user can see existing records and primary keys
-         boolean showCurrent = readBoolean("Would you like to view current records in " + config.rawTableName + " first? (yes/no): ", true);
-         if (showCurrent) {
-            String listSql = config.baseSelectFrom +
-                             (config.defaultOrderBy != null ? " ORDER BY " + config.defaultOrderBy : "");
-            try (PreparedStatement listPs = conn.prepareStatement(listSql);
-                 ResultSet listRs = listPs.executeQuery()) {
-               printSmartResultSet(listRs);
-            }
+         SearchTableConfig config = getTableConfig(choice);
+         if (config == null) {
+            System.out.println("Invalid table selection.");
+            continue;
          }
 
-         // Step 1: Identify target record by Primary Key(s)
-         List<SearchColumn> pkCols = config.getPrimaryKeys();
-         System.out.println("\nStep 1: Enter the Primary Key value(s) of the record to delete:");
-         List<QueryParam> pkParams = new ArrayList<>();
-         List<String> selectWhere = new ArrayList<>();
-         List<String> deleteWhere = new ArrayList<>();
+         Connection conn = esql.getConnection();
+         try {
+            System.out.println("\nSelected Table: " + config.tableName);
+            System.out.println("(Type 'backward' at any prompt to go back to the previous step)");
 
-         for (SearchColumn pkCol : pkCols) {
-            Object pkVal = readTypedScalar("  " + pkCol.label + " (" + pkCol.type + ", required): ", pkCol.type, true);
-            pkParams.add(new QueryParam(pkCol.type, pkVal));
-            if (pkCol.type == ColType.STRING) {
-               selectWhere.add("LOWER(" + pkCol.sqlExpr + ") = LOWER(?)");
-               deleteWhere.add("LOWER(" + pkCol.label + ") = LOWER(?)");
-            } else {
-               selectWhere.add(pkCol.sqlExpr + " = ?");
-               deleteWhere.add(pkCol.label + " = ?");
+            // Optional quick lookup so user can see existing records and primary keys
+            boolean showCurrent;
+            try {
+               showCurrent = readBooleanBack("Would you like to view current records in " + config.rawTableName + " first? (yes/no/backward): ", true);
+            } catch (BackNavigationException b) {
+               System.out.println("Returning to table selection menu...");
+               continue;
             }
-         }
 
-         // Step 2: Fetch and display target record before deletion
-         String fetchSql = config.baseSelectFrom + " WHERE " + String.join(" AND ", selectWhere);
-         System.out.println("\n--- TARGET RECORD TO DELETE ---");
-         int foundRows;
-         try (PreparedStatement beforePs = conn.prepareStatement(fetchSql)) {
-            bindQueryParams(conn, beforePs, pkParams);
-            try (ResultSet beforeRs = beforePs.executeQuery()) {
-               foundRows = printSmartResultSet(beforeRs);
+            if (showCurrent) {
+               String listSql = config.baseSelectFrom +
+                                (config.defaultOrderBy != null ? " ORDER BY " + config.defaultOrderBy : "");
+               try (PreparedStatement listPs = conn.prepareStatement(listSql);
+                    ResultSet listRs = listPs.executeQuery()) {
+                  printSmartResultSet(listRs);
+               }
             }
-         }
 
-         if (foundRows == 0) {
-            System.out.println("[Notice] No matching record found with the given primary key(s). Deletion aborted.");
+            // Step 1: Identify target record by Primary Key(s)
+            List<SearchColumn> pkCols = config.getPrimaryKeys();
+            List<QueryParam> pkParams = new ArrayList<>();
+            List<String> selectWhere = new ArrayList<>();
+            List<String> deleteWhere = new ArrayList<>();
+
+            boolean backToTableMenu = false;
+            while (true) {
+               pkParams.clear();
+               selectWhere.clear();
+               deleteWhere.clear();
+
+               System.out.println("\nStep 1: Enter the Primary Key value(s) of the record to delete (or type 'backward' to go back):");
+               try {
+                  for (SearchColumn pkCol : pkCols) {
+                     Object pkVal = readTypedScalarBack("  " + pkCol.label + " (" + pkCol.type + ", required): ", pkCol.type, true);
+                     pkParams.add(new QueryParam(pkCol.type, pkVal));
+                     if (pkCol.type == ColType.STRING) {
+                        selectWhere.add("LOWER(" + pkCol.sqlExpr + ") = LOWER(?)");
+                        deleteWhere.add("LOWER(" + pkCol.label + ") = LOWER(?)");
+                     } else {
+                        selectWhere.add(pkCol.sqlExpr + " = ?");
+                        deleteWhere.add(pkCol.label + " = ?");
+                     }
+                  }
+               } catch (BackNavigationException b) {
+                  System.out.println("Backing out of delete... returning to table selection menu.");
+                  backToTableMenu = true;
+                  break;
+               }
+
+               // Step 2: Fetch and display target record before deletion
+               String fetchSql = config.baseSelectFrom + " WHERE " + String.join(" AND ", selectWhere);
+               System.out.println("\n--- TARGET RECORD TO DELETE ---");
+               int foundRows;
+               try (PreparedStatement beforePs = conn.prepareStatement(fetchSql)) {
+                  bindQueryParams(conn, beforePs, pkParams);
+                  try (ResultSet beforeRs = beforePs.executeQuery()) {
+                     foundRows = printSmartResultSet(beforeRs);
+                  }
+               }
+
+               if (foundRows == 0) {
+                  System.out.println("[Notice] No matching record found with the given primary key(s). Please try again or type 'backward'.");
+                  continue;
+               }
+
+               // Step 3: Enforce hierarchy reassignment rules (Managers and Coaching Hierarchy)
+               if (config.rawTableName.equals("Managers")) {
+                  int mid = (Integer) pkParams.get(0).value;
+                  List<String> blockers = checkManagerDeleteBlockers(conn, mid);
+                  if (!blockers.isEmpty()) {
+                     System.out.println("\n[Deletion Blocked] Workers must be assigned to a new manager before the old manager can be deleted:");
+                     for (int i = 0; i < blockers.size(); i++) {
+                        System.out.println("  " + (i + 1) + ". " + blockers.get(i));
+                     }
+                     System.out.println("No changes were made to the database.");
+                     return;
+                  }
+               } else if (config.rawTableName.equals("Coaches")) {
+                  int cid = (Integer) pkParams.get(0).value;
+                  List<String> blockers = checkCoachDeleteBlockers(conn, cid);
+                  if (!blockers.isEmpty()) {
+                     System.out.println("\n[Deletion Blocked] Subordinate coaches must be assigned to a new supervisor coach in the coaching hierarchy before the old coach can be deleted:");
+                     for (int i = 0; i < blockers.size(); i++) {
+                        System.out.println("  " + (i + 1) + ". " + blockers.get(i));
+                     }
+                     System.out.println("No changes were made to the database.");
+                     return;
+                  }
+               }
+
+               // Step 4: Preview cascading deletions across all related tables and ask for confirmation
+               List<String> cascadeImpacts = getCascadeImpactSummary(conn, config.rawTableName, pkParams);
+               if (!cascadeImpacts.isEmpty()) {
+                  System.out.println("\n[Cascading Delete Notice] Deleting this record will automatically cascade to all related records:");
+                  for (String impact : cascadeImpacts) {
+                     System.out.println("  - " + impact);
+                  }
+               }
+
+               boolean confirm;
+               try {
+                  confirm = readBooleanBack("\nAre you sure you want to permanently delete this record" +
+                                            (cascadeImpacts.isEmpty() ? "" : " and all related records") +
+                                            "? (yes/no, or 'backward' to re-enter Primary Key): ", true);
+               } catch (BackNavigationException b) {
+                  System.out.println("Backing out of confirmation... returning to Step 1 (Primary Key entry).");
+                  continue;
+               }
+
+               if (!confirm) {
+                  System.out.println("Deletion cancelled by user. No changes were made.");
+                  return;
+               }
+
+               // Step 5: Execute cascading cleanup + target DELETE atomically inside a single transaction
+               String deleteSql = "DELETE FROM " + config.rawTableName + " WHERE " + String.join(" AND ", deleteWhere);
+               boolean prevAutoCommit = conn.getAutoCommit();
+               conn.setAutoCommit(false);
+               try {
+                  performCascadingCleanup(conn, config.rawTableName, pkParams);
+                  try (PreparedStatement deletePs = conn.prepareStatement(deleteSql)) {
+                     bindQueryParams(conn, deletePs, pkParams);
+                     int affected = deletePs.executeUpdate();
+                     conn.commit();
+                     System.out.println("\nSuccess: " + affected + " record(s) permanently deleted from " + config.rawTableName +
+                                        (cascadeImpacts.isEmpty() ? "." : " (along with all related records across linked tables)."));
+                  }
+               } catch (SQLException sqlEx) {
+                  conn.rollback();
+                  System.err.println("\n[Deletion Restricted] Database rejected the deletion and rolled back (SQLState: " + sqlEx.getSQLState() + "):");
+                  if ("23503".equals(sqlEx.getSQLState())) {
+                     System.err.println("  Foreign Key Constraint Violation: Workers/records still reference this record.");
+                  } else if ("P0001".equals(sqlEx.getSQLState())) {
+                     System.err.println("  Business Rule Trigger Violation: Deleting this record violates a franchise integrity rule.");
+                  }
+                  System.err.println("  Details: " + sqlEx.getMessage());
+               } finally {
+                  conn.setAutoCommit(prevAutoCommit);
+               }
+               return;
+            }
+
+            if (backToTableMenu) {
+               continue;
+            }
+
+         } catch (SQLException e) {
+            System.err.println("\n[Database Error] Delete operation failed (SQLState: " + e.getSQLState() + "):");
+            System.err.println("  " + e.getMessage());
+            return;
+         } catch (IOException e) {
+            System.err.println("\n[Input Error] Failed reading input: " + e.getMessage());
             return;
          }
-
-         // Step 3: Proactively check Foreign Key references and Franchise Business Rules
-         List<String> blockers = checkDeleteBusinessRules(conn, config.rawTableName, pkParams);
-         if (!blockers.isEmpty()) {
-            System.out.println("\n[Deletion Blocked] Cannot delete this record from " + config.rawTableName + " due to the following constraint(s) / business rule(s):");
-            for (int i = 0; i < blockers.size(); i++) {
-               System.out.println("  " + (i + 1) + ". " + blockers.get(i));
-            }
-            System.out.println("No changes were made to the database.");
-            return;
-         }
-
-         // Step 4: Warn about automatic ON DELETE CASCADE side effects (e.g., 1:1 stats) and confirm
-         printDeleteWarnings(config.rawTableName);
-         boolean confirm = readBoolean("\nAre you sure you want to permanently delete this record? (yes/no): ", true);
-         if (!confirm) {
-            System.out.println("Deletion cancelled by user. No changes were made.");
-            return;
-         }
-
-         // Step 5: Execute DELETE inside a transaction and handle any database-level constraint errors cleanly
-         String deleteSql = "DELETE FROM " + config.rawTableName + " WHERE " + String.join(" AND ", deleteWhere);
-         boolean prevAutoCommit = conn.getAutoCommit();
-         conn.setAutoCommit(false);
-         try (PreparedStatement deletePs = conn.prepareStatement(deleteSql)) {
-            bindQueryParams(conn, deletePs, pkParams);
-            int affected = deletePs.executeUpdate();
-            conn.commit();
-            System.out.println("\nSuccess: " + affected + " record(s) permanently deleted from " + config.rawTableName + ".");
-         } catch (SQLException sqlEx) {
-            conn.rollback();
-            System.err.println("\n[Deletion Restricted] Database rejected the deletion and rolled back (SQLState: " + sqlEx.getSQLState() + "):");
-            if ("23503".equals(sqlEx.getSQLState())) {
-               System.err.println("  Foreign Key Constraint Violation: Other records in the database still reference this record.");
-            } else if ("P0001".equals(sqlEx.getSQLState())) {
-               System.err.println("  Business Rule Trigger Violation: Deleting this record violates a franchise integrity rule.");
-            }
-            System.err.println("  Details: " + sqlEx.getMessage());
-         } finally {
-            conn.setAutoCommit(prevAutoCommit);
-         }
-
-      } catch (SQLException e) {
-         System.err.println("\n[Database Error] Delete operation failed (SQLState: " + e.getSQLState() + "):");
-         System.err.println("  " + e.getMessage());
-      } catch (IOException e) {
-         System.err.println("\n[Input Error] Failed reading input: " + e.getMessage());
       }
    }
 
