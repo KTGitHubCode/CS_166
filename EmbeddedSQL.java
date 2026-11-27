@@ -255,6 +255,65 @@ public class EmbeddedSQL {
       }
    }
 
+
+   // =========================================================================
+   // STARTUP NORMALIZATION: CONVERT STORED STRINGS TO LOWERCASE
+   // =========================================================================
+
+   private static final java.util.Set<String> ENUM_CHECK_COLUMNS = new java.util.HashSet<>(
+      Arrays.asList("morning_afternoon", "regular_practice_squad", "defensive_offensive", "focus", "excused_unexcused")
+   );
+
+   public static void normalizeDatabaseStringsToLower(Connection conn) {
+      System.out.print("Normalizing database text records to lowercase...");
+      try (Statement stmt = conn.createStatement()) {
+         for (int t = 1; t <= 26; t++) {
+            SearchTableConfig cfg = getTableConfig(t);
+            if (cfg == null) continue;
+
+            List<String> standardSetClauses = new ArrayList<>();
+            List<SearchColumn> enumCols = new ArrayList<>();
+
+            for (SearchColumn c : cfg.columns) {
+               if (c.type == ColType.STRING) {
+                  if (ENUM_CHECK_COLUMNS.contains(c.label)) {
+                     enumCols.add(c);
+                  } else {
+                     standardSetClauses.add(c.label + " = LOWER(" + c.label + ")");
+                  }
+               } else if (c.type == ColType.STRING_ARRAY) {
+                  standardSetClauses.add(
+                     c.label + " = CASE WHEN " + c.label + " IS NULL THEN NULL " +
+                     "ELSE ARRAY(SELECT LOWER(elem) FROM unnest(" + c.label + ") AS elem) END"
+                  );
+               }
+            }
+
+            if (!standardSetClauses.isEmpty()) {
+               String sql = "UPDATE " + cfg.rawTableName + " SET " + String.join(", ", standardSetClauses);
+               try {
+                  stmt.executeUpdate(sql);
+               } catch (SQLException ignored) {
+                  // Skip if a specific table/column has a custom constraint or trigger
+               }
+            }
+
+            // Attempt enum-constrained columns individually so a CHECK constraint on one
+            // never blocks normalizing other columns
+            for (SearchColumn ec : enumCols) {
+               try {
+                  stmt.executeUpdate("UPDATE " + cfg.rawTableName + " SET " + ec.label + " = LOWER(" + ec.label + ")");
+               } catch (SQLException ignored) {
+                  // Preserve database-enforced enum casing if a CHECK constraint requires Title Case
+               }
+            }
+         }
+         System.out.println("Done");
+      } catch (SQLException e) {
+         System.err.println("\n[Warning] Could not normalize all text columns: " + e.getMessage());
+      }
+   }
+
    public static void main (String[] args) {
       if (args.length != 3) {
          System.err.println (
@@ -273,6 +332,7 @@ public class EmbeddedSQL {
          String dbport = args[1];
          String user = args[2];
          esql = new EmbeddedSQL (dbname, dbport, user, "");
+         normalizeDatabaseStringsToLower(esql.getConnection());
 
          boolean keepon = true;
          while(keepon) {
@@ -369,7 +429,7 @@ public class EmbeddedSQL {
          System.out.print(prompt);
          String val = in.readLine();
          if (val != null && !val.trim().isEmpty()) {
-            return val.trim();
+            return val.trim().toLowerCase();
          }
          System.out.println("  [Error] This field is required and cannot be empty.");
       }
@@ -381,7 +441,7 @@ public class EmbeddedSQL {
       if (val == null || val.trim().isEmpty()) {
          return null;
       }
-      return val.trim();
+      return val.trim().toLowerCase();
    }
 
    private static Integer readInt(String prompt, boolean required, Integer min, Integer max) throws IOException {
@@ -536,7 +596,7 @@ public class EmbeddedSQL {
       List<String> cleaned = new ArrayList<>();
       for (String p : parts) {
          if (!p.trim().isEmpty()) {
-            cleaned.add(p.trim());
+            cleaned.add(p.trim().toLowerCase());
          }
       }
       return cleaned.isEmpty() ? null : cleaned.toArray(new String[0]);
@@ -675,11 +735,11 @@ public class EmbeddedSQL {
       Date hireDate = readDate("Hire Date (optional, YYYY-MM-DD): ", false);
       Integer exp = readInt("Experience in years (optional, >= 0): ", false, 0, null);
       String healthStatus = readOptionalString("Health Status (optional, defaults to 'Healthy'): ");
-      if (healthStatus == null) healthStatus = "Healthy";
+      if (healthStatus == null) healthStatus = "healthy";
       String squad = readEnum("Roster Type (required: 'Regular' or 'Practice Squad'): ",
                               true, Arrays.asList("Regular", "Practice Squad"));
       Integer jersey = readInt("Jersey Number (optional, 0-99): ", false, 0, 99);
-      String positions = readRequiredString("Positions (required, e.g., 'QB' or 'WR, KR'): ").toUpperCase();
+      String positions = readRequiredString("Positions (required, e.g., 'QB' or 'WR, KR'): ").toLowerCase();
       int mid = readInt("Manager ID (mid, required existing Manager ID): ", true, null, null);
       Integer mentorPid = readInt("Mentor Player ID (optional existing pid, != pid): ", false, null, null);
 
@@ -722,7 +782,7 @@ public class EmbeddedSQL {
       Integer age = readInt("Age (optional, >= 18): ", false, 18, null);
       Integer exp = readInt("Experience in years (optional, >= 0): ", false, 0, null);
       String team = readRequiredString("Opposing Team Name (required): ");
-      String positions = readRequiredString("Positions (required, e.g., 'CB' or 'DE, EDGE'): ").toUpperCase();
+      String positions = readRequiredString("Positions (required, e.g., 'CB' or 'DE, EDGE'): ").toLowerCase();
 
       String sql = "INSERT INTO Opposing_Players (opid, fname, lname, height, weight, age, experience, team, positions) " +
                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -1843,7 +1903,7 @@ public class EmbeddedSQL {
 
                   String val = readRequiredString("Enter text value for " + selectedCol.label + ": ");
                   if (opType == 1) {
-                     whereClauses.add(selectedCol.sqlExpr + " = ?");
+                     whereClauses.add("LOWER(" + selectedCol.sqlExpr + ") = LOWER(?)");
                      params.add(new QueryParam(ColType.STRING, val));
                   } else {
                      whereClauses.add(selectedCol.sqlExpr + " ILIKE ?");
@@ -1859,7 +1919,7 @@ public class EmbeddedSQL {
                   params.add(new QueryParam(ColType.INT, elem));
                } else if (selectedCol.type == ColType.STRING_ARRAY) {
                   String elem = readRequiredString("Enter text element to search inside array " + selectedCol.label + ": ");
-                  whereClauses.add("? = ANY(" + selectedCol.sqlExpr + ")");
+                  whereClauses.add("EXISTS (SELECT 1 FROM unnest(" + selectedCol.sqlExpr + ") AS elem WHERE LOWER(elem) = LOWER(?))");
                   params.add(new QueryParam(ColType.STRING, elem));
                }
 
@@ -1939,7 +1999,7 @@ public class EmbeddedSQL {
          return readInt("New value for " + colName + " (>= 0, or Enter for NULL): ", false, 0, null);
       }
       if (colName.equals("positions")) {
-         return readRequiredString("New value for positions (required, e.g., 'QB' or 'WR, KR'): ").toUpperCase();
+         return readRequiredString("New value for positions (required, e.g., 'QB' or 'WR, KR'): ").toLowerCase();
       }
       if (colName.equals("fname") || colName.equals("lname") || colName.equals("team")
           || colName.equals("position") || colName.equals("job_title")
@@ -2011,8 +2071,13 @@ public class EmbeddedSQL {
          for (SearchColumn pkCol : pkCols) {
             Object pkVal = readTypedScalar("  " + pkCol.label + " (" + pkCol.type + ", required): ", pkCol.type, true);
             pkParams.add(new QueryParam(pkCol.type, pkVal));
-            selectWhere.add(pkCol.sqlExpr + " = ?");
-            updateWhere.add(pkCol.label + " = ?");
+            if (pkCol.type == ColType.STRING) {
+               selectWhere.add("LOWER(" + pkCol.sqlExpr + ") = LOWER(?)");
+               updateWhere.add("LOWER(" + pkCol.label + ") = LOWER(?)");
+            } else {
+               selectWhere.add(pkCol.sqlExpr + " = ?");
+               updateWhere.add(pkCol.label + " = ?");
+            }
          }
 
          // Step 2: Fetch and display BEFORE state
@@ -2179,11 +2244,11 @@ public class EmbeddedSQL {
             "FROM suppliers s " +
             "JOIN catalog c ON c.sid = s.sid " +
             "JOIN parts p ON p.pid = c.pid " +
-            "WHERE p.pname = ";
+            "WHERE LOWER(p.pname) = LOWER(";
 
          System.out.print("\tEnter parts name: $");
-         String input = in.readLine();
-         query += "'" + input + "'";
+         String input = in.readLine().trim().toLowerCase();
+         query += "'" + input.replace("'", "''") + "')";
 
          int rowCount = esql.executeQuery(query);
          System.out.println ("total row(s): " + rowCount);

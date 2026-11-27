@@ -1,5 +1,5 @@
 -- ============================================================================
--- NFL Franchise Operations & Analytics Database (3NF Schema)
+-- NFL Franchise Operations & Analytics Database (3NF Schema - Lowercase Enforced)
 -- ============================================================================
 
 -- ============================================================================
@@ -47,17 +47,17 @@ DROP FUNCTION IF EXISTS fn_block_inactive_team_plays() CASCADE;
 DROP FUNCTION IF EXISTS fn_require_regular_staff_manager() CASCADE;
 
 -- ============================================================================
--- 1. CORE ENTITY TABLES
+-- 1. CORE ENTITY TABLES (All string CHECKs & defaults enforced in lowercase)
 -- ============================================================================
 
 -- Managers(mid, fname, lname, age, salary, rank, hire_date, experience)
 CREATE TABLE Managers (
     mid INT PRIMARY KEY,
-    fname VARCHAR(50) NOT NULL,
-    lname VARCHAR(100) NOT NULL,
+    fname VARCHAR(50) NOT NULL CHECK (fname = LOWER(fname)),
+    lname VARCHAR(100) NOT NULL CHECK (lname = LOWER(lname)),
     age INT CHECK (age >= 18),
     salary NUMERIC(12, 2) CHECK (salary >= 0),
-    rank VARCHAR(100),
+    rank VARCHAR(100) CHECK (rank IS NULL OR rank = LOWER(rank)),
     hire_date DATE,
     experience INT CHECK (experience >= 0)
 );
@@ -67,40 +67,40 @@ CREATE TABLE Managers (
 --              jersey_number, positions, mid, mentor_pid)
 CREATE TABLE Team_Players (
     pid INT PRIMARY KEY,
-    fname VARCHAR(50) NOT NULL,
-    lname VARCHAR(100) NOT NULL,
+    fname VARCHAR(50) NOT NULL CHECK (fname = LOWER(fname)),
+    lname VARCHAR(100) NOT NULL CHECK (lname = LOWER(lname)),
     height FLOAT CHECK (height > 0),
     weight FLOAT CHECK (weight > 0),
     age INT CHECK (age >= 18),
     salary NUMERIC(12, 2) CHECK (salary >= 0),
     hire_date DATE,
     experience INT CHECK (experience >= 0),
-    health_status VARCHAR(50) NOT NULL DEFAULT 'Healthy',
+    health_status VARCHAR(50) NOT NULL DEFAULT 'healthy' CHECK (health_status = LOWER(health_status)),
     regular_practice_squad VARCHAR(30) NOT NULL
-        CHECK (regular_practice_squad IN ('Regular', 'Practice Squad')),
+        CHECK (regular_practice_squad IN ('regular', 'practice squad') AND regular_practice_squad = LOWER(regular_practice_squad)),
     jersey_number INT CHECK (jersey_number BETWEEN 0 AND 99),
-    positions VARCHAR(100) NOT NULL,
+    positions VARCHAR(100) NOT NULL CHECK (positions = LOWER(positions)),
     mid INT NOT NULL REFERENCES Managers(mid),
     mentor_pid INT REFERENCES Team_Players(pid),
     CONSTRAINT chk_no_self_mentorship CHECK (mentor_pid IS NULL OR mentor_pid <> pid),
     CONSTRAINT chk_team_players_valid_positions CHECK (
-        positions ~ '^(QB|RB|HB|TB|FB|WR|TE|OL|OT|LT|RT|T|OG|LG|RG|G|C|DL|DE|DT|NT|EDGE|LB|ILB|MLB|OLB|DB|CB|S|FS|SS|K|PK|P|LS|KR|PR)(\s*,\s*(QB|RB|HB|TB|FB|WR|TE|OL|OT|LT|RT|T|OG|LG|RG|G|C|DL|DE|DT|NT|EDGE|LB|ILB|MLB|OLB|DB|CB|S|FS|SS|K|PK|P|LS|KR|PR))*$'
+        positions ~ '^(qb|rb|hb|tb|fb|wr|te|ol|ot|lt|rt|t|og|lg|rg|g|c|dl|de|dt|nt|edge|lb|ilb|mlb|olb|db|cb|s|fs|ss|k|pk|p|ls|kr|pr)(\s*,\s*(qb|rb|hb|tb|fb|wr|te|ol|ot|lt|rt|t|og|lg|rg|g|c|dl|de|dt|nt|edge|lb|ilb|mlb|olb|db|cb|s|fs|ss|k|pk|p|ls|kr|pr))*$'
     )
 );
 
 -- Opposing_Players(opid, fname, lname, height, weight, age, experience, team, positions)
 CREATE TABLE Opposing_Players (
     opid INT PRIMARY KEY,
-    fname VARCHAR(50) NOT NULL,
-    lname VARCHAR(100) NOT NULL,
+    fname VARCHAR(50) NOT NULL CHECK (fname = LOWER(fname)),
+    lname VARCHAR(100) NOT NULL CHECK (lname = LOWER(lname)),
     height FLOAT CHECK (height > 0),
     weight FLOAT CHECK (weight > 0),
     age INT CHECK (age >= 18),
     experience INT CHECK (experience >= 0),
-    team VARCHAR(100) NOT NULL,
-    positions VARCHAR(100) NOT NULL,
+    team VARCHAR(100) NOT NULL CHECK (team = LOWER(team)),
+    positions VARCHAR(100) NOT NULL CHECK (positions = LOWER(positions)),
     CONSTRAINT chk_opposing_players_valid_positions CHECK (
-        positions ~ '^(QB|RB|HB|TB|FB|WR|TE|OL|OT|LT|RT|T|OG|LG|RG|G|C|DL|DE|DT|NT|EDGE|LB|ILB|MLB|OLB|DB|CB|S|FS|SS|K|PK|P|LS|KR|PR)(\s*,\s*(QB|RB|HB|TB|FB|WR|TE|OL|OT|LT|RT|T|OG|LG|RG|G|C|DL|DE|DT|NT|EDGE|LB|ILB|MLB|OLB|DB|CB|S|FS|SS|K|PK|P|LS|KR|PR))*$'
+        positions ~ '^(qb|rb|hb|tb|fb|wr|te|ol|ot|lt|rt|t|og|lg|rg|g|c|dl|de|dt|nt|edge|lb|ilb|mlb|olb|db|cb|s|fs|ss|k|pk|p|ls|kr|pr)(\s*,\s*(qb|rb|hb|tb|fb|wr|te|ol|ot|lt|rt|t|og|lg|rg|g|c|dl|de|dt|nt|edge|lb|ilb|mlb|olb|db|cb|s|fs|ss|k|pk|p|ls|kr|pr))*$'
     )
 );
 
@@ -108,16 +108,16 @@ CREATE TABLE Opposing_Players (
 --         position, defensive_offensive, mid, reports_to_cid)
 CREATE TABLE Coaches (
     cid INT PRIMARY KEY,
-    fname VARCHAR(50) NOT NULL,
-    lname VARCHAR(100) NOT NULL,
+    fname VARCHAR(50) NOT NULL CHECK (fname = LOWER(fname)),
+    lname VARCHAR(100) NOT NULL CHECK (lname = LOWER(lname)),
     salary NUMERIC(12, 2) CHECK (salary >= 0),
     age INT CHECK (age >= 18),
-    gender VARCHAR(30),
+    gender VARCHAR(30) CHECK (gender IS NULL OR gender = LOWER(gender)),
     hire_date DATE,
     experience INT CHECK (experience >= 0),
-    position VARCHAR(200) NOT NULL,
+    position VARCHAR(200) NOT NULL CHECK (position = LOWER(position)),
     defensive_offensive VARCHAR(30)
-        CHECK (defensive_offensive IN ('Offensive', 'Defensive', 'Special Teams', 'Both')),
+        CHECK (defensive_offensive IS NULL OR (defensive_offensive IN ('offensive', 'defensive', 'special teams', 'both') AND defensive_offensive = LOWER(defensive_offensive))),
     mid INT NOT NULL REFERENCES Managers(mid),
     reports_to_cid INT REFERENCES Coaches(cid),
     CONSTRAINT chk_no_self_reporting CHECK (reports_to_cid IS NULL OR reports_to_cid <> cid)
@@ -126,36 +126,36 @@ CREATE TABLE Coaches (
 -- Statistical_Team(stid, fname, lname, salary, hire_date, experience, focus)
 CREATE TABLE Statistical_Team (
     stid INT PRIMARY KEY,
-    fname VARCHAR(50) NOT NULL,
-    lname VARCHAR(100) NOT NULL,
+    fname VARCHAR(50) NOT NULL CHECK (fname = LOWER(fname)),
+    lname VARCHAR(100) NOT NULL CHECK (lname = LOWER(lname)),
     salary NUMERIC(12, 2) CHECK (salary >= 0),
     hire_date DATE,
     experience INT CHECK (experience >= 0),
     focus VARCHAR(30) NOT NULL
-        CHECK (focus IN ('Offensive', 'Defensive', 'Both'))
+        CHECK (focus IN ('offensive', 'defensive', 'both') AND focus = LOWER(focus))
 );
 
 -- Team_Doctors(did, fname, lname, salary, age, gender, hire_date, experience, speciality)
 CREATE TABLE Team_Doctors (
     did INT PRIMARY KEY,
-    fname VARCHAR(50) NOT NULL,
-    lname VARCHAR(100) NOT NULL,
+    fname VARCHAR(50) NOT NULL CHECK (fname = LOWER(fname)),
+    lname VARCHAR(100) NOT NULL CHECK (lname = LOWER(lname)),
     salary NUMERIC(12, 2) CHECK (salary >= 0),
     age INT CHECK (age >= 18),
-    gender VARCHAR(30),
+    gender VARCHAR(30) CHECK (gender IS NULL OR gender = LOWER(gender)),
     hire_date DATE,
     experience INT CHECK (experience >= 0),
-    speciality VARCHAR(200)
+    speciality VARCHAR(200) CHECK (speciality IS NULL OR speciality = LOWER(speciality))
 );
 
 -- Trainers(tid, fname, lname, salary, age, gender, hire_date, experience)
 CREATE TABLE Trainers (
     tid INT PRIMARY KEY,
-    fname VARCHAR(50) NOT NULL,
-    lname VARCHAR(100) NOT NULL,
+    fname VARCHAR(50) NOT NULL CHECK (fname = LOWER(fname)),
+    lname VARCHAR(100) NOT NULL CHECK (lname = LOWER(lname)),
     salary NUMERIC(12, 2) CHECK (salary >= 0),
     age INT CHECK (age >= 18),
-    gender VARCHAR(30),
+    gender VARCHAR(30) CHECK (gender IS NULL OR gender = LOWER(gender)),
     hire_date DATE,
     experience INT CHECK (experience >= 0)
 );
@@ -163,31 +163,31 @@ CREATE TABLE Trainers (
 -- Regular_Staff(jib, fname, lname, salary, age, experience, job_title, gender)
 CREATE TABLE Regular_Staff (
     jib INT PRIMARY KEY,
-    fname VARCHAR(50) NOT NULL,
-    lname VARCHAR(100) NOT NULL,
+    fname VARCHAR(50) NOT NULL CHECK (fname = LOWER(fname)),
+    lname VARCHAR(100) NOT NULL CHECK (lname = LOWER(lname)),
     salary NUMERIC(12, 2) CHECK (salary >= 0),
     age INT CHECK (age >= 16),
     experience INT CHECK (experience >= 0),
-    job_title VARCHAR(100) NOT NULL,
-    gender VARCHAR(30)
+    job_title VARCHAR(100) NOT NULL CHECK (job_title = LOWER(job_title)),
+    gender VARCHAR(30) CHECK (gender IS NULL OR gender = LOWER(gender))
 );
 
 -- Games(gid, date_of_game, home_team, away_team, play_by_play, home_team_plays, away_team_plays)
 CREATE TABLE Games (
     gid INT PRIMARY KEY,
     date_of_game DATE NOT NULL UNIQUE,
-    home_team VARCHAR(100) NOT NULL,
-    away_team VARCHAR(100) NOT NULL,
-    play_by_play TEXT,
-    home_team_plays TEXT,
-    away_team_plays TEXT
+    home_team VARCHAR(100) NOT NULL CHECK (home_team = LOWER(home_team)),
+    away_team VARCHAR(100) NOT NULL CHECK (away_team = LOWER(away_team)),
+    play_by_play TEXT CHECK (play_by_play IS NULL OR play_by_play = LOWER(play_by_play)),
+    home_team_plays TEXT CHECK (home_team_plays IS NULL OR home_team_plays = LOWER(home_team_plays)),
+    away_team_plays TEXT CHECK (away_team_plays IS NULL OR away_team_plays = LOWER(away_team_plays))
 );
 
 -- Practices(date_of_practice, morning_afternoon)
 CREATE TABLE Practices (
     date_of_practice DATE NOT NULL,
     morning_afternoon VARCHAR(15) NOT NULL
-        CHECK (morning_afternoon IN ('Morning', 'Afternoon')),
+        CHECK (morning_afternoon IN ('morning', 'afternoon') AND morning_afternoon = LOWER(morning_afternoon)),
     PRIMARY KEY (date_of_practice, morning_afternoon)
 );
 
@@ -195,20 +195,17 @@ CREATE TABLE Practices (
 -- 2. 1:1 WEAK-ENTITY CUMULATIVE STATISTICS TABLES
 -- ============================================================================
 
--- Offensive_Stats_Home(pid, ...)
--- Signed yardage columns (passing_yards, rushing_yards, receiving_yards, yards_gained_behind)
--- intentionally omit >= 0 constraints to allow negative total yards.
 CREATE TABLE Offensive_Stats_Home (
     pid INT PRIMARY KEY REFERENCES Team_Players(pid) ON DELETE CASCADE,
     snaps_played INT DEFAULT 0 CHECK (snaps_played >= 0),
     passing_attempts INT DEFAULT 0 CHECK (passing_attempts >= 0),
     completions INT DEFAULT 0 CHECK (completions >= 0),
-    passing_yards INT DEFAULT 0,          -- Allows negative total passing yards
+    passing_yards INT DEFAULT 0,
     rushing_attempts INT DEFAULT 0 CHECK (rushing_attempts >= 0),
-    rushing_yards INT DEFAULT 0,          -- Allows negative total rushing yards
+    rushing_yards INT DEFAULT 0,
     targets INT DEFAULT 0 CHECK (targets >= 0),
     catches INT DEFAULT 0 CHECK (catches >= 0),
-    receiving_yards INT DEFAULT 0,        -- Allows negative total receiving yards
+    receiving_yards INT DEFAULT 0,
     blocking_attempts INT DEFAULT 0 CHECK (blocking_attempts >= 0),
     sacks_allowed INT DEFAULT 0 CHECK (sacks_allowed >= 0),
     pressures_allowed INT DEFAULT 0 CHECK (pressures_allowed >= 0),
@@ -217,18 +214,17 @@ CREATE TABLE Offensive_Stats_Home (
     penalties INT DEFAULT 0 CHECK (penalties >= 0)
 );
 
--- Offensive_Stats_Away(opid, ...)
 CREATE TABLE Offensive_Stats_Away (
     opid INT PRIMARY KEY REFERENCES Opposing_Players(opid) ON DELETE CASCADE,
     snaps_played INT DEFAULT 0 CHECK (snaps_played >= 0),
     passing_attempts INT DEFAULT 0 CHECK (passing_attempts >= 0),
     completions INT DEFAULT 0 CHECK (completions >= 0),
-    passing_yards INT DEFAULT 0,          -- Allows negative total passing yards
+    passing_yards INT DEFAULT 0,
     rushing_attempts INT DEFAULT 0 CHECK (rushing_attempts >= 0),
-    rushing_yards INT DEFAULT 0,          -- Allows negative total rushing yards
+    rushing_yards INT DEFAULT 0,
     targets INT DEFAULT 0 CHECK (targets >= 0),
     catches INT DEFAULT 0 CHECK (catches >= 0),
-    receiving_yards INT DEFAULT 0,        -- Allows negative total receiving yards
+    receiving_yards INT DEFAULT 0,
     blocking_attempts INT DEFAULT 0 CHECK (blocking_attempts >= 0),
     sacks_allowed INT DEFAULT 0 CHECK (sacks_allowed >= 0),
     pressures_allowed INT DEFAULT 0 CHECK (pressures_allowed >= 0),
@@ -237,7 +233,6 @@ CREATE TABLE Offensive_Stats_Away (
     penalties INT DEFAULT 0 CHECK (penalties >= 0)
 );
 
--- Defensive_Stats_Home(pid, ...)
 CREATE TABLE Defensive_Stats_Home (
     pid INT PRIMARY KEY REFERENCES Team_Players(pid) ON DELETE CASCADE,
     snaps_played INT DEFAULT 0 CHECK (snaps_played >= 0),
@@ -251,7 +246,6 @@ CREATE TABLE Defensive_Stats_Home (
     penalties INT DEFAULT 0 CHECK (penalties >= 0)
 );
 
--- Defensive_Stats_Away(opid, ...)
 CREATE TABLE Defensive_Stats_Away (
     opid INT PRIMARY KEY REFERENCES Opposing_Players(opid) ON DELETE CASCADE,
     snaps_played INT DEFAULT 0 CHECK (snaps_played >= 0),
@@ -265,39 +259,35 @@ CREATE TABLE Defensive_Stats_Away (
     penalties INT DEFAULT 0 CHECK (penalties >= 0)
 );
 
--- Special_Teams_Stats_Home(pid, ...)
--- Signed yardage columns (punt_yards, kick_return_yards, punt_return_yards)
--- intentionally omit >= 0 constraints to allow negative total yards.
 CREATE TABLE Special_Teams_Stats_Home (
     pid INT PRIMARY KEY REFERENCES Team_Players(pid) ON DELETE CASCADE,
     snaps_played INT DEFAULT 0 CHECK (snaps_played >= 0),
     punt_attempts INT DEFAULT 0 CHECK (punt_attempts >= 0),
-    punt_yards INT DEFAULT 0,             -- Allows negative total punting yards
+    punt_yards INT DEFAULT 0,
     field_goal_attempts INT DEFAULT 0 CHECK (field_goal_attempts >= 0),
     field_goals_made INT DEFAULT 0 CHECK (field_goals_made >= 0),
     field_goal_kick_lengths INT[],
     extra_point_attempts INT DEFAULT 0 CHECK (extra_point_attempts >= 0),
     extra_points_made INT DEFAULT 0 CHECK (extra_points_made >= 0),
     punts_blocked INT DEFAULT 0 CHECK (punts_blocked >= 0),
-    kick_return_yards INT DEFAULT 0,      -- Allows negative total kick return yards
-    punt_return_yards INT DEFAULT 0,      -- Allows negative total punt return yards
+    kick_return_yards INT DEFAULT 0,
+    punt_return_yards INT DEFAULT 0,
     penalties INT DEFAULT 0 CHECK (penalties >= 0)
 );
 
--- Special_Teams_Stats_Away(opid, ...)
 CREATE TABLE Special_Teams_Stats_Away (
     opid INT PRIMARY KEY REFERENCES Opposing_Players(opid) ON DELETE CASCADE,
     snaps_played INT DEFAULT 0 CHECK (snaps_played >= 0),
     punt_attempts INT DEFAULT 0 CHECK (punt_attempts >= 0),
-    punt_yards INT DEFAULT 0,             -- Allows negative total punting yards
+    punt_yards INT DEFAULT 0,
     field_goal_attempts INT DEFAULT 0 CHECK (field_goal_attempts >= 0),
     field_goals_made INT DEFAULT 0 CHECK (field_goals_made >= 0),
     field_goal_kick_lengths INT[],
     extra_point_attempts INT DEFAULT 0 CHECK (extra_point_attempts >= 0),
     extra_points_made INT DEFAULT 0 CHECK (extra_points_made >= 0),
     punts_blocked INT DEFAULT 0 CHECK (punts_blocked >= 0),
-    kick_return_yards INT DEFAULT 0,      -- Allows negative total kick return yards
-    punt_return_yards INT DEFAULT 0,      -- Allows negative total punt return yards
+    kick_return_yards INT DEFAULT 0,
+    punt_return_yards INT DEFAULT 0,
     penalties INT DEFAULT 0 CHECK (penalties >= 0)
 );
 
@@ -309,8 +299,8 @@ CREATE TABLE Special_Teams_Stats_Away (
 CREATE TABLE Who_Coaches (
     cid INT NOT NULL REFERENCES Coaches(cid),
     pid INT NOT NULL REFERENCES Team_Players(pid),
-    affiliation VARCHAR(100),
-    game_plan TEXT,
+    affiliation VARCHAR(100) CHECK (affiliation IS NULL OR affiliation = LOWER(affiliation)),
+    game_plan TEXT CHECK (game_plan IS NULL OR game_plan = LOWER(game_plan)),
     date DATE NOT NULL,
     PRIMARY KEY (cid, pid, date)
 );
@@ -326,8 +316,8 @@ CREATE TABLE Coach_In_Game (
 CREATE TABLE Team_Plays (
     pid INT NOT NULL REFERENCES Team_Players(pid),
     gid INT NOT NULL REFERENCES Games(gid),
-    list_of_plays TEXT[],
-    list_of_stats TEXT[],
+    list_of_plays TEXT[] CHECK (list_of_plays IS NULL OR array_to_string(list_of_plays, '|') = LOWER(array_to_string(list_of_plays, '|'))),
+    list_of_stats TEXT[] CHECK (list_of_stats IS NULL OR array_to_string(list_of_stats, '|') = LOWER(array_to_string(list_of_stats, '|'))),
     PRIMARY KEY (pid, gid)
 );
 
@@ -335,8 +325,8 @@ CREATE TABLE Team_Plays (
 CREATE TABLE Opposing_Plays (
     opid INT NOT NULL REFERENCES Opposing_Players(opid),
     gid INT NOT NULL REFERENCES Games(gid),
-    list_of_plays TEXT[],
-    list_of_stats TEXT[],
+    list_of_plays TEXT[] CHECK (list_of_plays IS NULL OR array_to_string(list_of_plays, '|') = LOWER(array_to_string(list_of_plays, '|'))),
+    list_of_stats TEXT[] CHECK (list_of_stats IS NULL OR array_to_string(list_of_stats, '|') = LOWER(array_to_string(list_of_stats, '|'))),
     PRIMARY KEY (opid, gid)
 );
 
@@ -344,7 +334,7 @@ CREATE TABLE Opposing_Plays (
 CREATE TABLE Analyze_Team (
     stid INT NOT NULL REFERENCES Statistical_Team(stid),
     pid INT NOT NULL REFERENCES Team_Players(pid),
-    analysis TEXT,
+    analysis TEXT CHECK (analysis IS NULL OR analysis = LOWER(analysis)),
     date DATE NOT NULL,
     PRIMARY KEY (stid, pid, date)
 );
@@ -353,7 +343,7 @@ CREATE TABLE Analyze_Team (
 CREATE TABLE Analyze_Opposing (
     stid INT NOT NULL REFERENCES Statistical_Team(stid),
     opid INT NOT NULL REFERENCES Opposing_Players(opid),
-    analysis TEXT,
+    analysis TEXT CHECK (analysis IS NULL OR analysis = LOWER(analysis)),
     date DATE NOT NULL,
     PRIMARY KEY (stid, opid, date)
 );
@@ -362,10 +352,11 @@ CREATE TABLE Analyze_Opposing (
 CREATE TABLE Practices_In (
     pid INT NOT NULL REFERENCES Team_Players(pid),
     date_of_practice DATE NOT NULL,
-    morning_afternoon VARCHAR(15) NOT NULL,
+    morning_afternoon VARCHAR(15) NOT NULL
+        CHECK (morning_afternoon = LOWER(morning_afternoon)),
     did_practice BOOLEAN NOT NULL,
     excused_unexcused VARCHAR(15)
-        CHECK (excused_unexcused IN ('Excused', 'Unexcused') OR excused_unexcused IS NULL),
+        CHECK (excused_unexcused IS NULL OR (excused_unexcused IN ('excused', 'unexcused') AND excused_unexcused = LOWER(excused_unexcused))),
     FOREIGN KEY (date_of_practice, morning_afternoon)
         REFERENCES Practices(date_of_practice, morning_afternoon),
     PRIMARY KEY (pid, date_of_practice, morning_afternoon)
@@ -376,7 +367,7 @@ CREATE TABLE Manages_reg_staff (
     mid INT NOT NULL REFERENCES Managers(mid),
     jib INT NOT NULL REFERENCES Regular_Staff(jib),
     days INT CHECK (days BETWEEN 1 AND 7),
-    schedule VARCHAR(100)[],
+    schedule VARCHAR(100)[] CHECK (schedule IS NULL OR array_to_string(schedule, '|') = LOWER(array_to_string(schedule, '|'))),
     PRIMARY KEY (mid, jib)
 );
 
@@ -384,7 +375,7 @@ CREATE TABLE Manages_reg_staff (
 CREATE TABLE Inspects (
     did INT NOT NULL REFERENCES Team_Doctors(did),
     pid INT NOT NULL REFERENCES Team_Players(pid),
-    diagnosis VARCHAR(300),
+    diagnosis VARCHAR(300) CHECK (diagnosis IS NULL OR diagnosis = LOWER(diagnosis)),
     treatment_length INT CHECK (treatment_length >= 0),
     date DATE NOT NULL,
     PRIMARY KEY (did, pid, date)
@@ -394,7 +385,7 @@ CREATE TABLE Inspects (
 CREATE TABLE Works_on (
     tid INT NOT NULL REFERENCES Trainers(tid),
     pid INT NOT NULL REFERENCES Team_Players(pid),
-    condition_of_player VARCHAR(200),
+    condition_of_player VARCHAR(200) CHECK (condition_of_player IS NULL OR condition_of_player = LOWER(condition_of_player)),
     recommends BOOLEAN,
     date DATE NOT NULL,
     PRIMARY KEY (tid, pid, date)
@@ -407,22 +398,22 @@ CREATE TABLE Works_on (
 -- Active regular-roster players must hold unique jersey numbers within the franchise
 CREATE UNIQUE INDEX idx_active_roster_jersey_unique
     ON Team_Players (jersey_number)
-    WHERE regular_practice_squad = 'Regular' AND jersey_number IS NOT NULL;
+    WHERE regular_practice_squad = 'regular' AND jersey_number IS NOT NULL;
 
 -- At most one Head Coach in the franchise
 CREATE UNIQUE INDEX idx_single_head_coach
     ON Coaches (position)
-    WHERE position = 'Head Coach';
+    WHERE position = 'head coach';
 
 -- Consolidated franchise payroll view across all 7 employee tables
 CREATE OR REPLACE VIEW vw_franchise_payroll AS
-SELECT 'Players' AS dept, COUNT(*) AS headcount, COALESCE(SUM(salary), 0) AS payroll FROM Team_Players
-UNION ALL SELECT 'Coaches', COUNT(*), COALESCE(SUM(salary), 0) FROM Coaches
-UNION ALL SELECT 'Managers', COUNT(*), COALESCE(SUM(salary), 0) FROM Managers
-UNION ALL SELECT 'Team Doctors', COUNT(*), COALESCE(SUM(salary), 0) FROM Team_Doctors
-UNION ALL SELECT 'Trainers', COUNT(*), COALESCE(SUM(salary), 0) FROM Trainers
-UNION ALL SELECT 'Statistical Team', COUNT(*), COALESCE(SUM(salary), 0) FROM Statistical_Team
-UNION ALL SELECT 'Regular Staff', COUNT(*), COALESCE(SUM(salary), 0) FROM Regular_Staff;
+SELECT 'players' AS dept, COUNT(*) AS headcount, COALESCE(SUM(salary), 0) AS payroll FROM Team_Players
+UNION ALL SELECT 'coaches', COUNT(*), COALESCE(SUM(salary), 0) FROM Coaches
+UNION ALL SELECT 'managers', COUNT(*), COALESCE(SUM(salary), 0) FROM Managers
+UNION ALL SELECT 'team doctors', COUNT(*), COALESCE(SUM(salary), 0) FROM Team_Doctors
+UNION ALL SELECT 'trainers', COUNT(*), COALESCE(SUM(salary), 0) FROM Trainers
+UNION ALL SELECT 'statistical team', COUNT(*), COALESCE(SUM(salary), 0) FROM Statistical_Team
+UNION ALL SELECT 'regular staff', COUNT(*), COALESCE(SUM(salary), 0) FROM Regular_Staff;
 
 -- Enforce 53-man active roster and 17-man practice squad caps (excluding IR players)
 CREATE OR REPLACE FUNCTION fn_enforce_roster_caps()
@@ -430,28 +421,28 @@ RETURNS TRIGGER AS $$
 DECLARE
     v_count INT;
 BEGIN
-    -- Players on Injured Reserve ('IR') do not count toward active or practice squad caps
-    IF NEW.health_status = 'IR' THEN
+    -- Players on Injured Reserve ('ir') do not count toward active or practice squad caps
+    IF LOWER(NEW.health_status) = 'ir' THEN
         RETURN NEW;
     END IF;
 
-    IF NEW.regular_practice_squad = 'Regular' THEN
+    IF LOWER(NEW.regular_practice_squad) = 'regular' THEN
         SELECT COUNT(*) INTO v_count
         FROM Team_Players
-        WHERE regular_practice_squad = 'Regular'
-          AND health_status <> 'IR'
+        WHERE LOWER(regular_practice_squad) = 'regular'
+          AND LOWER(health_status) <> 'ir'
           AND pid <> NEW.pid;
         IF v_count >= 53 THEN
-            RAISE EXCEPTION 'Active Regular roster cap (53, excluding IR) exceeded.';
+            RAISE EXCEPTION 'Active Regular roster cap (53, excluding ir) exceeded.';
         END IF;
-    ELSIF NEW.regular_practice_squad = 'Practice Squad' THEN
+    ELSIF LOWER(NEW.regular_practice_squad) = 'practice squad' THEN
         SELECT COUNT(*) INTO v_count
         FROM Team_Players
-        WHERE regular_practice_squad = 'Practice Squad'
-          AND health_status <> 'IR'
+        WHERE LOWER(regular_practice_squad) = 'practice squad'
+          AND LOWER(health_status) <> 'ir'
           AND pid <> NEW.pid;
         IF v_count >= 17 THEN
-            RAISE EXCEPTION 'Practice Squad roster cap (17, excluding IR) exceeded.';
+            RAISE EXCEPTION 'Practice Squad roster cap (17, excluding ir) exceeded.';
         END IF;
     END IF;
     RETURN NEW;
@@ -548,7 +539,7 @@ BEFORE INSERT OR UPDATE OF reports_to_cid ON Coaches
 FOR EACH ROW
 EXECUTE PROCEDURE fn_validate_coach_hierarchy();
 
--- Block 'Out' or 'IR' players from logging game participation in Team_Plays
+-- Block 'out' or 'ir' players from logging game participation in Team_Plays
 CREATE OR REPLACE FUNCTION fn_block_inactive_team_plays()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -558,7 +549,7 @@ BEGIN
     FROM Team_Players
     WHERE pid = NEW.pid;
 
-    IF v_status IN ('Out', 'IR') THEN
+    IF LOWER(v_status) IN ('out', 'ir') THEN
         RAISE EXCEPTION 'Player % cannot play in a game while health_status is %.', NEW.pid, v_status;
     END IF;
 
@@ -592,62 +583,196 @@ EXECUTE PROCEDURE fn_require_regular_staff_manager();
 
 
 -- ============================================================================
--- LOAD DATA FROM PIPE-DELIMITED TEXT FILES (each \copy MUST be on a single line)
+-- 5. STAGING TABLES & NORMALIZED LOWERCASE DATA LOAD
+--    (Ingests raw mixed-case text files into TEMP staging tables, converts all
+--     strings and string arrays to LOWER(...), and loads target tables)
 -- ============================================================================
 
+-- 5A. Create TEMP staging tables mirroring each source file
+CREATE TEMP TABLE stg_Managers (LIKE Managers);
+CREATE TEMP TABLE stg_Team_Players (LIKE Team_Players);
+CREATE TEMP TABLE stg_Opposing_Players (LIKE Opposing_Players);
+CREATE TEMP TABLE stg_Coaches (LIKE Coaches);
+CREATE TEMP TABLE stg_Statistical_Team (LIKE Statistical_Team);
+CREATE TEMP TABLE stg_Team_Doctors (LIKE Team_Doctors);
+CREATE TEMP TABLE stg_Trainers (LIKE Trainers);
+CREATE TEMP TABLE stg_Regular_Staff (LIKE Regular_Staff);
+CREATE TEMP TABLE stg_Games (LIKE Games);
+CREATE TEMP TABLE stg_Practices (LIKE Practices);
+
+CREATE TEMP TABLE stg_Offensive_Stats_Home (LIKE Offensive_Stats_Home);
+CREATE TEMP TABLE stg_Offensive_Stats_Away (LIKE Offensive_Stats_Away);
+CREATE TEMP TABLE stg_Defensive_Stats_Home (LIKE Defensive_Stats_Home);
+CREATE TEMP TABLE stg_Defensive_Stats_Away (LIKE Defensive_Stats_Away);
+CREATE TEMP TABLE stg_Special_Teams_Stats_Home (LIKE Special_Teams_Stats_Home);
+CREATE TEMP TABLE stg_Special_Teams_Stats_Away (LIKE Special_Teams_Stats_Away);
+
+CREATE TEMP TABLE stg_Who_Coaches (LIKE Who_Coaches);
+CREATE TEMP TABLE stg_Coach_In_Game (LIKE Coach_In_Game);
+CREATE TEMP TABLE stg_Team_Plays (LIKE Team_Plays);
+CREATE TEMP TABLE stg_Opposing_Plays (LIKE Opposing_Plays);
+CREATE TEMP TABLE stg_Analyze_Team (LIKE Analyze_Team);
+CREATE TEMP TABLE stg_Analyze_Opposing (LIKE Analyze_Opposing);
+CREATE TEMP TABLE stg_Practices_In (LIKE Practices_In);
+CREATE TEMP TABLE stg_Manages_reg_staff (LIKE Manages_reg_staff);
+CREATE TEMP TABLE stg_Inspects (LIKE Inspects);
+CREATE TEMP TABLE stg_Works_on (LIKE Works_on);
+
+-- 5B. Copy raw pipe-delimited files into TEMP staging tables (each \copy on a single line)
+\copy stg_Managers (mid, fname, lname, age, salary, rank, hire_date, experience) FROM './all_current_data/Managers.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Team_Players (pid, fname, lname, height, weight, age, salary, hire_date, experience, health_status, regular_practice_squad, jersey_number, positions, mid, mentor_pid) FROM './all_current_data/Team_Players.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Opposing_Players (opid, fname, lname, height, weight, age, experience, team, positions) FROM './all_current_data/Opposing_Players.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Coaches (cid, fname, lname, salary, age, gender, hire_date, experience, position, defensive_offensive, mid, reports_to_cid) FROM './all_current_data/Coaches.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Statistical_Team (stid, fname, lname, salary, hire_date, experience, focus) FROM './all_current_data/Statistical_Team.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Team_Doctors (did, fname, lname, salary, age, gender, hire_date, experience, speciality) FROM './all_current_data/Team_Doctors.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Trainers (tid, fname, lname, salary, age, gender, hire_date, experience) FROM './all_current_data/Trainers.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Regular_Staff (jib, fname, lname, salary, age, experience, job_title, gender) FROM './all_current_data/Regular_Staff.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Manages_reg_staff (mid, jib, days, schedule) FROM './all_current_data/Manages_reg_staff.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Games (gid, date_of_game, home_team, away_team, play_by_play, home_team_plays, away_team_plays) FROM './all_current_data/Games.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Practices (date_of_practice, morning_afternoon) FROM './all_current_data/Practices.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+
+\copy stg_Offensive_Stats_Home (pid, snaps_played, passing_attempts, completions, passing_yards, rushing_attempts, rushing_yards, targets, catches, receiving_yards, blocking_attempts, sacks_allowed, pressures_allowed, yards_gained_behind, fumbles, penalties) FROM './all_current_data/Offensive_Stats_Home.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Offensive_Stats_Away (opid, snaps_played, passing_attempts, completions, passing_yards, rushing_attempts, rushing_yards, targets, catches, receiving_yards, blocking_attempts, sacks_allowed, pressures_allowed, yards_gained_behind, fumbles, penalties) FROM './all_current_data/Offensive_Stats_Away.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Defensive_Stats_Home (pid, snaps_played, tackles, sacks, pressures, pass_deflections, interceptions, fumbles_forced, fumbles_recovered, penalties) FROM './all_current_data/Defensive_Stats_Home.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Defensive_Stats_Away (opid, snaps_played, tackles, sacks, pressures, pass_deflections, interceptions, fumbles_forced, fumbles_recovered, penalties) FROM './all_current_data/Defensive_Stats_Away.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Special_Teams_Stats_Home (pid, snaps_played, punt_attempts, punt_yards, field_goal_attempts, field_goals_made, field_goal_kick_lengths, extra_point_attempts, extra_points_made, punts_blocked, kick_return_yards, punt_return_yards, penalties) FROM './all_current_data/Special_Teams_Stats_Home.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Special_Teams_Stats_Away (opid, snaps_played, punt_attempts, punt_yards, field_goal_attempts, field_goals_made, field_goal_kick_lengths, extra_point_attempts, extra_points_made, punts_blocked, kick_return_yards, punt_return_yards, penalties) FROM './all_current_data/Special_Teams_Stats_Away.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+
+\copy stg_Who_Coaches (cid, pid, affiliation, game_plan, date) FROM './all_current_data/Who_Coaches.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Coach_In_Game (cid, gid) FROM './all_current_data/Coach_In_Game.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Team_Plays (pid, gid, list_of_plays, list_of_stats) FROM './all_current_data/Team_Plays.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Opposing_Plays (opid, gid, list_of_plays, list_of_stats) FROM './all_current_data/Opposing_Plays.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Analyze_Team (stid, pid, analysis, date) FROM './all_current_data/Analyze_Team.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Analyze_Opposing (stid, opid, analysis, date) FROM './all_current_data/Analyze_Opposing.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Practices_In (pid, date_of_practice, morning_afternoon, did_practice, excused_unexcused) FROM './all_current_data/Practices_In.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Inspects (did, pid, diagnosis, treatment_length, date) FROM './all_current_data/Inspects.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+\copy stg_Works_on (tid, pid, condition_of_player, recommends, date) FROM './all_current_data/Works_on.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+
+-- 5C. Transform & Insert all staged records with LOWER(...) on every string & string[] column
+
 -- 1. Core Entity Tables
-\copy Managers (mid, fname, lname, age, salary, rank, hire_date, experience) FROM './all_current_data/Managers.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Managers (mid, fname, lname, age, salary, rank, hire_date, experience)
+SELECT mid, LOWER(fname), LOWER(lname), age, salary, LOWER(rank), hire_date, experience
+FROM stg_Managers;
 
-\copy Team_Players (pid, fname, lname, height, weight, age, salary, hire_date, experience, health_status, regular_practice_squad, jersey_number, positions, mid, mentor_pid) FROM './all_current_data/Team_Players.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Team_Players (pid, fname, lname, height, weight, age, salary, hire_date, experience, health_status, regular_practice_squad, jersey_number, positions, mid, mentor_pid)
+SELECT pid, LOWER(fname), LOWER(lname), height, weight, age, salary, hire_date, experience, LOWER(health_status), LOWER(regular_practice_squad), jersey_number, LOWER(positions), mid, mentor_pid
+FROM stg_Team_Players;
 
-\copy Opposing_Players (opid, fname, lname, height, weight, age, experience, team, positions) FROM './all_current_data/Opposing_Players.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Opposing_Players (opid, fname, lname, height, weight, age, experience, team, positions)
+SELECT opid, LOWER(fname), LOWER(lname), height, weight, age, experience, LOWER(team), LOWER(positions)
+FROM stg_Opposing_Players;
 
-\copy Coaches (cid, fname, lname, salary, age, gender, hire_date, experience, position, defensive_offensive, mid, reports_to_cid) FROM './all_current_data/Coaches.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Coaches (cid, fname, lname, salary, age, gender, hire_date, experience, position, defensive_offensive, mid, reports_to_cid)
+SELECT cid, LOWER(fname), LOWER(lname), salary, age, LOWER(gender), hire_date, experience, LOWER(position), LOWER(defensive_offensive), mid, reports_to_cid
+FROM stg_Coaches;
 
-\copy Statistical_Team (stid, fname, lname, salary, hire_date, experience, focus) FROM './all_current_data/Statistical_Team.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Statistical_Team (stid, fname, lname, salary, hire_date, experience, focus)
+SELECT stid, LOWER(fname), LOWER(lname), salary, hire_date, experience, LOWER(focus)
+FROM stg_Statistical_Team;
 
-\copy Team_Doctors (did, fname, lname, salary, age, gender, hire_date, experience, speciality) FROM './all_current_data/Team_Doctors.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Team_Doctors (did, fname, lname, salary, age, gender, hire_date, experience, speciality)
+SELECT did, LOWER(fname), LOWER(lname), salary, age, LOWER(gender), hire_date, experience, LOWER(speciality)
+FROM stg_Team_Doctors;
 
-\copy Trainers (tid, fname, lname, salary, age, gender, hire_date, experience) FROM './all_current_data/Trainers.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Trainers (tid, fname, lname, salary, age, gender, hire_date, experience)
+SELECT tid, LOWER(fname), LOWER(lname), salary, age, LOWER(gender), hire_date, experience
+FROM stg_Trainers;
 
 BEGIN;
-\copy Regular_Staff (jib, fname, lname, salary, age, experience, job_title, gender) FROM './all_current_data/Regular_Staff.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
-\copy Manages_reg_staff (mid, jib, days, schedule) FROM './all_current_data/Manages_reg_staff.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Regular_Staff (jib, fname, lname, salary, age, experience, job_title, gender)
+SELECT jib, LOWER(fname), LOWER(lname), salary, age, experience, LOWER(job_title), LOWER(gender)
+FROM stg_Regular_Staff;
+
+INSERT INTO Manages_reg_staff (mid, jib, days, schedule)
+SELECT mid, jib, days,
+       CASE WHEN schedule IS NULL THEN NULL
+            ELSE ARRAY(SELECT LOWER(elem) FROM unnest(schedule) AS elem)
+       END
+FROM stg_Manages_reg_staff;
 COMMIT;
 
-\copy Games (gid, date_of_game, home_team, away_team, play_by_play, home_team_plays, away_team_plays) FROM './all_current_data/Games.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Games (gid, date_of_game, home_team, away_team, play_by_play, home_team_plays, away_team_plays)
+SELECT gid, date_of_game, LOWER(home_team), LOWER(away_team), LOWER(play_by_play), LOWER(home_team_plays), LOWER(away_team_plays)
+FROM stg_Games;
 
-\copy Practices (date_of_practice, morning_afternoon) FROM './all_current_data/Practices.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Practices (date_of_practice, morning_afternoon)
+SELECT date_of_practice, LOWER(morning_afternoon)
+FROM stg_Practices;
 
 -- 2. 1:1 Cumulative Statistics Tables
-\copy Offensive_Stats_Home (pid, snaps_played, passing_attempts, completions, passing_yards, rushing_attempts, rushing_yards, targets, catches, receiving_yards, blocking_attempts, sacks_allowed, pressures_allowed, yards_gained_behind, fumbles, penalties) FROM './all_current_data/Offensive_Stats_Home.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Offensive_Stats_Home
+SELECT * FROM stg_Offensive_Stats_Home;
 
-\copy Offensive_Stats_Away (opid, snaps_played, passing_attempts, completions, passing_yards, rushing_attempts, rushing_yards, targets, catches, receiving_yards, blocking_attempts, sacks_allowed, pressures_allowed, yards_gained_behind, fumbles, penalties) FROM './all_current_data/Offensive_Stats_Away.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Offensive_Stats_Away
+SELECT * FROM stg_Offensive_Stats_Away;
 
-\copy Defensive_Stats_Home (pid, snaps_played, tackles, sacks, pressures, pass_deflections, interceptions, fumbles_forced, fumbles_recovered, penalties) FROM './all_current_data/Defensive_Stats_Home.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Defensive_Stats_Home
+SELECT * FROM stg_Defensive_Stats_Home;
 
-\copy Defensive_Stats_Away (opid, snaps_played, tackles, sacks, pressures, pass_deflections, interceptions, fumbles_forced, fumbles_recovered, penalties) FROM './all_current_data/Defensive_Stats_Away.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Defensive_Stats_Away
+SELECT * FROM stg_Defensive_Stats_Away;
 
-\copy Special_Teams_Stats_Home (pid, snaps_played, punt_attempts, punt_yards, field_goal_attempts, field_goals_made, field_goal_kick_lengths, extra_point_attempts, extra_points_made, punts_blocked, kick_return_yards, punt_return_yards, penalties) FROM './all_current_data/Special_Teams_Stats_Home.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Special_Teams_Stats_Home
+SELECT * FROM stg_Special_Teams_Stats_Home;
 
-\copy Special_Teams_Stats_Away (opid, snaps_played, punt_attempts, punt_yards, field_goal_attempts, field_goals_made, field_goal_kick_lengths, extra_point_attempts, extra_points_made, punts_blocked, kick_return_yards, punt_return_yards, penalties) FROM './all_current_data/Special_Teams_Stats_Away.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Special_Teams_Stats_Away
+SELECT * FROM stg_Special_Teams_Stats_Away;
 
 -- 3. Many-to-Many Associative & Event Log Tables
-\copy Who_Coaches (cid, pid, affiliation, game_plan, date) FROM './all_current_data/Who_Coaches.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Who_Coaches (cid, pid, affiliation, game_plan, date)
+SELECT cid, pid, LOWER(affiliation), LOWER(game_plan), date
+FROM stg_Who_Coaches;
 
-\copy Coach_In_Game (cid, gid) FROM './all_current_data/Coach_In_Game.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Coach_In_Game (cid, gid)
+SELECT cid, gid
+FROM stg_Coach_In_Game;
 
-\copy Team_Plays (pid, gid, list_of_plays, list_of_stats) FROM './all_current_data/Team_Plays.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Team_Plays (pid, gid, list_of_plays, list_of_stats)
+SELECT pid, gid,
+       CASE WHEN list_of_plays IS NULL THEN NULL
+            ELSE ARRAY(SELECT LOWER(elem) FROM unnest(list_of_plays) AS elem)
+       END,
+       CASE WHEN list_of_stats IS NULL THEN NULL
+            ELSE ARRAY(SELECT LOWER(elem) FROM unnest(list_of_stats) AS elem)
+       END
+FROM stg_Team_Plays;
 
-\copy Opposing_Plays (opid, gid, list_of_plays, list_of_stats) FROM './all_current_data/Opposing_Plays.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Opposing_Plays (opid, gid, list_of_plays, list_of_stats)
+SELECT opid, gid,
+       CASE WHEN list_of_plays IS NULL THEN NULL
+            ELSE ARRAY(SELECT LOWER(elem) FROM unnest(list_of_plays) AS elem)
+       END,
+       CASE WHEN list_of_stats IS NULL THEN NULL
+            ELSE ARRAY(SELECT LOWER(elem) FROM unnest(list_of_stats) AS elem)
+       END
+FROM stg_Opposing_Plays;
 
-\copy Analyze_Team (stid, pid, analysis, date) FROM './all_current_data/Analyze_Team.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Analyze_Team (stid, pid, analysis, date)
+SELECT stid, pid, LOWER(analysis), date
+FROM stg_Analyze_Team;
 
-\copy Analyze_Opposing (stid, opid, analysis, date) FROM './all_current_data/Analyze_Opposing.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Analyze_Opposing (stid, opid, analysis, date)
+SELECT stid, opid, LOWER(analysis), date
+FROM stg_Analyze_Opposing;
 
-\copy Practices_In (pid, date_of_practice, morning_afternoon, did_practice, excused_unexcused) FROM './all_current_data/Practices_In.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Practices_In (pid, date_of_practice, morning_afternoon, did_practice, excused_unexcused)
+SELECT pid, date_of_practice, LOWER(morning_afternoon), did_practice, LOWER(excused_unexcused)
+FROM stg_Practices_In;
 
-\copy Inspects (did, pid, diagnosis, treatment_length, date) FROM './all_current_data/Inspects.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Inspects (did, pid, diagnosis, treatment_length, date)
+SELECT did, pid, LOWER(diagnosis), treatment_length, date
+FROM stg_Inspects;
 
-\copy Works_on (tid, pid, condition_of_player, recommends, date) FROM './all_current_data/Works_on.txt' WITH (FORMAT csv, DELIMITER '|', HEADER false);
+INSERT INTO Works_on (tid, pid, condition_of_player, recommends, date)
+SELECT tid, pid, LOWER(condition_of_player), recommends, date
+FROM stg_Works_on;
 
+-- 5D. Drop TEMP staging tables
+DROP TABLE IF EXISTS stg_Works_on, stg_Inspects, stg_Manages_reg_staff, stg_Practices_In,
+    stg_Analyze_Opposing, stg_Analyze_Team, stg_Opposing_Plays, stg_Team_Plays,
+    stg_Coach_In_Game, stg_Who_Coaches, stg_Special_Teams_Stats_Away,
+    stg_Special_Teams_Stats_Home, stg_Defensive_Stats_Away, stg_Defensive_Stats_Home,
+    stg_Offensive_Stats_Away, stg_Offensive_Stats_Home, stg_Practices, stg_Games,
+    stg_Regular_Staff, stg_Trainers, stg_Team_Doctors, stg_Statistical_Team,
+    stg_Coaches, stg_Opposing_Players, stg_Team_Players, stg_Managers;
